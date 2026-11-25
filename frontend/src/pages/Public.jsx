@@ -11,7 +11,7 @@ export function Landing() {
     <section className="hero"><div><span className="eyebrow">Now hiring</span><h1>Teach, lead and grow at Tingathe Secondary School.</h1>
       <p>Apply online in minutes, from your phone or computer. Your documents help our Director compare applications fairly, and a person makes every final decision.</p>
       <div className="row" style={{ marginTop: 24, flexWrap: 'wrap' }}><a href="#vacancies" className="btn gold">See open vacancies</a><Link to="/register" className="btn ghost">Create account</Link></div></div>
-      <img src="/images/hero.svg" alt="Illustration of Tingathe Secondary School" /></section>
+      <div className="hero-photo"><img src="/images/IMG-20261116-WA0675.jpg.jpeg" alt="Tingathe Secondary School students celebrating together" /><img className="hero-inset" src="/images/IMG-20261116-WA7812.jpg.jpeg" alt="Tingathe Secondary School building and students" /></div></section>
     <div className="strip"><div>{open.length} open vacancies</div><div>PDF, Word and scanned files <span>accepted</span></div><div>Track your application <span>online</span></div><div>Final decision by <span>a person</span></div></div>
     <section className="sec" id="vacancies"><h2>Open vacancies</h2><p className="mut">Choose a role to read the requirements and apply.</p>
       <div className="vgrid">{open.map(v => <VCard key={v.id} v={v} to={`/vacancies/${v.id}`} />)}</div></section>
@@ -84,7 +84,7 @@ export function MyApplications() {
     {user && mine.length === 0 && <div className="card col"><h3>No applications yet</h3><p className="mut p0">Browse the open vacancies and apply — it takes a few minutes.</p><Link to="/" className="btn" style={{ alignSelf: 'flex-start' }}>See open vacancies</Link></div>}</section>
 }
 
-const Side = ({ h, p }) => <div className="authl"><Brand light /><div><h1>{h}</h1><p>{p}</p></div><img src="/images/hero.svg" alt="" /></div>
+const Side = ({ h, p }) => <div className="authl"><Brand light /><div><h1>{h}</h1><p>{p}</p></div><img src="/images/IMG-20261116-WA7812.jpg.jpeg" alt="Tingathe Secondary School students and building" /></div>
 const Tabs = ({ on }) => <div className="tabs"><Link to="/login" className={on === 0 ? 'on' : ''}>Sign in</Link><Link to="/register" className={on === 1 ? 'on' : ''}>Create account</Link></div>
 
 export function Login() {

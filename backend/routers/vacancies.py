@@ -16,7 +16,7 @@ def _get_vacancy(db: Session, vacancy_id: str) -> Vacancy:
     if not vacancy:
         raise HTTPException(status_code=404, detail="Vacancy not found")
     return vacancy
-
+  
 
 def _category(db: Session, name: str) -> Category:
     category = db.query(Category).filter(Category.name == name.strip()).one_or_none()
