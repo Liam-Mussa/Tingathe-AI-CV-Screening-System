@@ -28,6 +28,7 @@ from models import (
     Decision,
     Document,
     ExtractionRun,
+    Notification,
     ProfileItem,
     ScreeningResult,
     User,
@@ -271,6 +272,15 @@ def decide_application(
     )
     db.add(decision)
     application.status = "decided"
+    vacancy_title = application.vacancy.title
+    successful = payload.decision == "shortlist"
+    reason = payload.note.strip() if payload.note else ("The Director selected you for the next stage." if successful else "No reason was provided.")
+    message = (
+        f"Congratulations! Your application for {vacancy_title} has been successful. Reason: {reason}"
+        if successful else
+        f"Your application for {vacancy_title} was unsuccessful. Reason: {reason} Thank you for your interest."
+    )
+    db.add(Notification(recipient_id=application.applicant_id, category="decision", title="Application decision", message=message))
     audit(db, f"Recorded decision: {payload.decision.replace('_', ' ')}", user.id, "application", str(application.id))
     db.commit()
     db.refresh(application)

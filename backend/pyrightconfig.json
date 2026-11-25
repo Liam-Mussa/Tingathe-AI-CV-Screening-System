@@ -1,0 +1,15 @@
+{
+  "typeCheckingMode": "off",
+  "include": [
+    "*.py",
+    "extraction",
+    "nlp",
+    "routers",
+    "scoring",
+    "storage"
+  ],
+  "exclude": [
+    ".venv",
+    "**/__pycache__"
+  ]
+}

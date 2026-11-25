@@ -220,7 +220,7 @@ class ScreeningResult(Base):
     application_id = Column(GUID(), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
     total_score = Column(Numeric(5, 2), nullable=False, default=0)
     rank = Column(Integer)
-    scoring_version = Column(String(40), nullable=False, default="v1")
+    scoring_version = Column(String(40), nullable=False, default="dataset-trained")
     run_at = Column(DateTime, nullable=False, default=_now)
 
     application = relationship("Application", back_populates="results")
@@ -264,6 +264,28 @@ class ReportExport(Base):
     generated_by = Column(GUID(), ForeignKey("users.id"), nullable=False)
     format = Column(String(10), nullable=False)  # pdf | csv
     file_path = Column(String(500), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(GUID(), primary_key=True, default=_uuid)
+    user_id = Column(GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(GUID(), primary_key=True, default=_uuid)
+    recipient_id = Column(GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category = Column(String(40), nullable=False, default="system")
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=_now)
 
 

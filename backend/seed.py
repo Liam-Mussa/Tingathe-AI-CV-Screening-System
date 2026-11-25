@@ -95,7 +95,7 @@ def seed_development_data(db: Session) -> None:
     if director is None:
         director = User(
             email="william@example.com",
-            password_hash=hash_password("director123"),
+            password_hash=hash_password("Director123"),
             full_name="William Mussa",
             role="director",
             phone="+265 999 000 000",

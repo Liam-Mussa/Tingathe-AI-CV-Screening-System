@@ -135,3 +135,45 @@ def publish_vacancy(
     db.commit()
     db.refresh(vacancy)
     return vacancy_response(vacancy)
+
+
+@router.post("/{vacancy_id}/close", response_model=VacancyResponse)
+def close_vacancy(
+    vacancy_id: str,
+    db: DB,
+    user: User = Depends(director_only),
+):
+    vacancy = _get_vacancy(db, vacancy_id)
+    if vacancy.status == "closed":
+        return vacancy_response(vacancy)
+    vacancy.status = "closed"
+    audit(db, "Closed vacancy", user.id, "vacancy", str(vacancy.id), {"title": vacancy.title})
+    db.commit()
+    db.refresh(vacancy)
+    return vacancy_response(vacancy)
+
+
+@router.post("/{vacancy_id}/reopen", response_model=VacancyResponse)
+def reopen_vacancy(
+    vacancy_id: str,
+    db: DB,
+    user: User = Depends(director_only),
+):
+    vacancy = _get_vacancy(db, vacancy_id)
+    if not vacancy.criteria:
+        raise HTTPException(status_code=400, detail="Add at least one screening criterion before reopening")
+    vacancy.status = "open"
+    audit(db, "Reopened vacancy", user.id, "vacancy", str(vacancy.id), {"title": vacancy.title})
+    db.commit()
+    db.refresh(vacancy)
+    return vacancy_response(vacancy)
+
+
+@router.delete("/{vacancy_id}")
+def delete_vacancy(vacancy_id: str, db: DB, user: User = Depends(director_only)):
+    vacancy = _get_vacancy(db, vacancy_id)
+    title = vacancy.title
+    audit(db, "Deleted vacancy", user.id, "vacancy", str(vacancy.id), {"title": title})
+    db.delete(vacancy)
+    db.commit()
+    return {"message": "Vacancy deleted successfully"}

@@ -7,7 +7,7 @@ cd frontend
 npm install
 npm run dev     # http://localhost:5173
 ```
-Pages: public careers site (`/`), vacancy and apply (`/vacancies/<uuid>`), my applications (`/me`), sign in/register, and the Director workspace (`/admin`). Use the demo sign-in buttons on `/login`.
+Pages: public careers site (`/`), vacancy and apply (`/vacancies/<uuid>`), my applications (`/me`), sign in/register, password recovery, and the Director workspace (`/admin`). Sign in using a registered account.
 
 The vacancy IDs are generated UUIDs, so use the links shown by the application rather than assuming a numeric vacancy URL.
 
@@ -15,7 +15,7 @@ The vacancy IDs are generated UUIDs, so use the links shown by the application r
 
 The local SQLite seed creates these accounts:
 
-- Director: `william@example.com` / `director123`
+- Director: `william@example.com` / `Director123`
 - Applicant: `chikondi@example.com` / `applicant123`
 
 ## Make it the school's own
@@ -57,6 +57,27 @@ The SQLite development seed only runs for SQLite. Use an explicit deployment or 
 - Screening scores are weighted and explainable by criterion. Low-confidence extraction is flagged for manual review.
 - Directors can create/publish vacancies, review criterion evidence, record shortlist/hold/not-shortlisted decisions, inspect the audit log, and download CSV/PDF reports.
 - Uploaded documents are stored under `backend/storage/documents`; protect this directory and configure appropriate retention in production.
+
+## Password and account security
+
+- Passwords must contain at least 8 characters, one uppercase letter and one number.
+- Registration requires password confirmation.
+- Login, registration and password-reset forms include a Show/Hide password control so users can verify what they entered.
+- Password recovery uses a 30-minute expiring reset token. Configure email delivery before production use.
+- The Director account is protected and cannot be deleted through the Users page.
+
+## Screening model configuration
+
+The scoring engine uses the criteria in `tingathe_demo_dataset.xlsx`: academic qualification 25%, teaching subject specialization 25%, teaching experience 20%, teaching methodology and classroom management 15%, professional teaching qualification/training 10%, and additional relevant skills 5%.
+
+Rebuild the configuration with:
+
+```powershell
+cd backend
+.venv\Scripts\python.exe scoring\train_from_workbook.py
+```
+
+This generates `backend/scoring/trained_model.json`, which is loaded by the backend automatically.
 
 ## Ideas for later
 SMS or WhatsApp status updates, a real Chichewa translation for the language switch, and a read-only link for the school board to view the shortlist.

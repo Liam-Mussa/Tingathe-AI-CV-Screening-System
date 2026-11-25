@@ -1,0 +1,184 @@
+{
+  "source": "tingathe_demo_dataset.xlsx",
+  "criteria": {
+    "academic qualification": 25.0,
+    "teaching subject specialization": 25.0,
+    "teaching experience": 20.0,
+    "teaching methodology and classroom management": 15.0,
+    "professional teaching qualification training": 10.0,
+    "additional relevant skills": 5.0
+  },
+  "subject_vocabularies": {
+    "mathematics": [
+      "algebra",
+      "geometry",
+      "mathematics",
+      "statistics",
+      "trigonometry"
+    ],
+    "biology": [
+      "biology",
+      "ecology",
+      "human",
+      "laboratory",
+      "plant",
+      "practicals"
+    ],
+    "english": [
+      "composition",
+      "comprehension",
+      "english",
+      "grammar",
+      "literature",
+      "reading",
+      "writing"
+    ],
+    "computer studies": [
+      "applications",
+      "computer",
+      "fundamentals",
+      "instruction",
+      "laboratory",
+      "literacy",
+      "office",
+      "programming",
+      "studies"
+    ],
+    "mathematics and physics": [
+      "algebra",
+      "and",
+      "electricity",
+      "geometry",
+      "mathematics",
+      "mechanics",
+      "physics"
+    ],
+    "biology and agriculture": [
+      "agriculture",
+      "and",
+      "biology",
+      "ecology",
+      "laboratory",
+      "plant",
+      "practicals",
+      "science",
+      "soil"
+    ],
+    "english and social studies": [
+      "and",
+      "civic",
+      "composition",
+      "comprehension",
+      "education",
+      "english",
+      "grammar",
+      "reading",
+      "social",
+      "studies",
+      "writing"
+    ],
+    "ict and mathematics": [
+      "algebra",
+      "and",
+      "applications",
+      "computer",
+      "fundamentals",
+      "ict",
+      "literacy",
+      "mathematics",
+      "office",
+      "programming"
+    ],
+    "physics": [
+      "electricity",
+      "experiments",
+      "mathematics",
+      "mechanics",
+      "physics",
+      "practical"
+    ],
+    "chemistry": [
+      "chemical",
+      "chemistry",
+      "laboratory",
+      "practicals",
+      "procedures",
+      "reactions",
+      "safety",
+      "stoichiometry"
+    ]
+  },
+  "top_skills": {
+    "lesson planning": 48,
+    "classroom management": 44,
+    "learner centred teaching": 43,
+    "scheme of work preparation": 27,
+    "ict integration": 25,
+    "practical lesson facilitation": 24,
+    "continuous assessment": 22,
+    "examination setting and marking": 21,
+    "record keeping": 20,
+    "remedial teaching": 20,
+    "group work facilitation": 16,
+    "algebra": 12,
+    "laboratory practicals": 12,
+    "plant biology": 11,
+    "computer literacy": 11,
+    "grammar": 10,
+    "composition writing": 10,
+    "programming fundamentals": 9,
+    "office applications": 9,
+    "mechanics": 9,
+    "electricity": 9,
+    "geometry": 8,
+    "reading comprehension": 8,
+    "ecology": 7,
+    "statistics": 6,
+    "human biology": 5,
+    "soil science": 5,
+    "practical experiments": 5,
+    "chemical reactions": 5,
+    "safety procedures": 5,
+    "trigonometry": 4,
+    "literature": 4,
+    "computer laboratory instruction": 4,
+    "civic education": 4,
+    "mathematics": 4,
+    "stoichiometry": 4
+  },
+  "methodology_skills": {
+    "lesson planning": 30,
+    "classroom management": 30,
+    "learner centred teaching": 30,
+    "scheme of work preparation": 10,
+    "ict integration": 10,
+    "remedial teaching": 9,
+    "examination setting and marking": 7,
+    "group work facilitation": 6,
+    "record keeping": 6,
+    "continuous assessment": 6,
+    "practical lesson facilitation": 6
+  },
+  "vacancies": {
+    "Mathematics": {
+      "minimum_qualification": "Bachelor of Education (Mathematics) or relevant recognised teaching qualification with Mathematics specialization",
+      "minimum_experience": 2.0,
+      "required_skills": "Lesson planning; classroom management; assessment; algebra; geometry; statistics"
+    },
+    "Biology": {
+      "minimum_qualification": "Bachelor of Education (Biology) or relevant recognised teaching qualification with Biology specialization",
+      "minimum_experience": 2.0,
+      "required_skills": "Lesson planning; classroom management; practical/laboratory teaching; assessment; ecology; human biology"
+    },
+    "English": {
+      "minimum_qualification": "Bachelor of Education (English) or relevant recognised teaching qualification with English specialization",
+      "minimum_experience": 2.0,
+      "required_skills": "Lesson planning; classroom management; grammar; composition; reading comprehension; assessment"
+    },
+    "Computer Studies": {
+      "minimum_qualification": "Bachelor of Education (ICT/Computer Studies) or relevant recognised teaching qualification with ICT/Computer Studies specialization",
+      "minimum_experience": 1.0,
+      "required_skills": "Lesson planning; classroom management; computer literacy; programming fundamentals; office applications; practical lab instruction"
+    }
+  }
+}

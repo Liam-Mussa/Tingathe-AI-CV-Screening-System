@@ -28,4 +28,6 @@ CREATE TABLE decisions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), applicati
 CREATE TABLE report_exports (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), vacancy_id uuid NOT NULL REFERENCES vacancies(id), generated_by uuid NOT NULL REFERENCES users(id),
   format text NOT NULL CHECK (format IN ('pdf','csv')), file_path text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE audit_logs (id bigserial PRIMARY KEY, actor_id uuid REFERENCES users(id), action text NOT NULL, entity_type text, entity_id uuid, metadata jsonb, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE password_reset_tokens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash text UNIQUE NOT NULL, expires_at timestamptz NOT NULL, used_at timestamptz);
+CREATE TABLE notifications (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), recipient_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, category text NOT NULL DEFAULT 'system', title text NOT NULL, message text NOT NULL, is_read boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX ON applications (vacancy_id); CREATE INDEX ON documents (application_id); CREATE INDEX ON screening_results (application_id); CREATE INDEX ON criterion_scores (result_id);

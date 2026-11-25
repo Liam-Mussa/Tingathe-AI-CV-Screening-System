@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Chip, Field, Select, Person, Stat, Bar, Table, Head, Ring, VCard, LinkBtn, statusKind } from '../ui.jsx'
-import { users, APP_STATUS } from '../data.js'
+import { APP_STATUS } from '../data.js'
 import { useStore } from '../store.js'
-import { downloadProtected, request } from '../api.js'
+import { apiApplicationToClient, downloadProtected, request } from '../api.js'
 
 export const Dashboard = () => {
   const [{ applications, audit, vacancies }] = useStore()
@@ -24,19 +24,33 @@ export const Dashboard = () => {
 }
 
 export const Vacancies = () => {
-  const [{ vacancies }] = useStore()
+  const [{ vacancies }, { loadVacancies }] = useStore()
+  const removeVacancy = v => {
+    if (!window.confirm(`Delete vacancy "${v.title}"? This will also remove related applications. This cannot be undone.`)) return
+    request(`/api/vacancies/${v.id}`, { method: 'DELETE' }).then(() => { window.alert('Vacancy deleted successfully.'); loadVacancies() }).catch(error => window.alert(error.message))
+  }
+  const closeVacancy = v => {
+    if (!window.confirm(`Close vacancy "${v.title}"? Applicants will no longer be able to submit applications.`)) return
+    request(`/api/vacancies/${v.id}/close`, { method: 'POST' }).then(() => { window.alert('Vacancy closed successfully.'); loadVacancies() }).catch(error => window.alert(error.message))
+  }
+  const reopenVacancy = v => {
+    if (!window.confirm(`Reopen vacancy "${v.title}"?`)) return
+    request(`/api/vacancies/${v.id}/reopen`, { method: 'POST' }).then(() => { window.alert('Vacancy reopened successfully.'); loadVacancies() }).catch(error => window.alert(error.message))
+  }
   const [tab, setTab] = useState('All'); const rows = vacancies.filter(v => tab === 'All' || v.status === tab)
   return <><Head title="Vacancies" sub="Create, publish and close vacancies"><LinkBtn to="/admin/vacancies/new">New vacancy</LinkBtn></Head>
     <div className="tabs">{['All', 'Open', 'Draft', 'Closed'].map(t => <a key={t} href="#" className={t === tab ? 'on' : ''} onClick={e => { e.preventDefault(); setTab(t) }}>{t}</a>)}</div>
-    <div className="vgrid">{rows.map(v => <VCard key={v.id} v={v} admin to={`/admin/vacancies/${v.id}`} />)}<Link to="/admin/vacancies/new" className="vnew">+ New vacancy</Link></div></>
+    <div className="vgrid">{rows.map(v => <div className="col" key={v.id}><VCard v={v} admin to={`/admin/vacancies/${v.id}`} /><button className="btn o" type="button" onClick={() => removeVacancy(v)}>Delete vacancy</button>
+      {v.status === 'Open' ? <button className="btn" type="button" onClick={() => closeVacancy(v)}>Close vacancy</button> : v.status === 'Closed' ? <button className="btn" type="button" onClick={() => reopenVacancy(v)}>Reopen vacancy</button> : null}</div>)}<Link to="/admin/vacancies/new" className="vnew">+ New vacancy</Link></div></>
 }
 
 export function VacancyBuilder() {
   const [{ vacancies }] = useStore()
   const { id } = useParams()
   const existing = vacancies.find(v => String(v.id) === String(id))
-  const [f, setF] = useState(() => ({ title: existing?.title || 'Mathematics Teacher', cat: existing?.cat || 'Teaching', type: existing?.type || 'Full time', summary: existing?.summary || 'Teach Mathematics to Forms 1–4 and support the department.', img: existing?.img || 'maths', status: existing?.status || 'Draft', closing_date: existing?.closing_date || '' }))
-  const [cr, setCr] = useState(() => existing?.criteria || [['New criterion', 0, { criterion_type: 'keyword', is_mandatory: false }]]); const total = cr.reduce((s, c) => s + Number(c[1] || 0), 0); const up = k => e => setF({ ...f, [k]: e.target.value })
+  const [f, setF] = useState(() => ({ title: existing?.title || '', cat: existing?.cat || '', type: existing?.type || '', summary: existing?.summary || '', img: existing?.img || 'maths', status: existing?.status || 'Draft', closing_date: existing?.closing_date || '' }))
+  const [cr, setCr] = useState(() => existing?.criteria || [])
+  const total = cr.reduce((s, c) => s + Number(c[1] || 0), 0); const up = k => e => setF({ ...f, [k]: e.target.value })
   const pv = { ...f, id: 0, status: 'Open', closes: '[closing date]', applicants: 0 }
   const save = async status => {
     const payload = { title: f.title, category: f.cat, employment_type: f.type, summary: f.summary, description: f.summary, image_key: f.img, status, closing_date: f.closing_date || null, criteria: cr.map(c => ({ criterion_type: c[2]?.criterion_type || 'keyword', label: c[0], required_value: c[2]?.required_value || c[0], weight: Number(c[1]), is_mandatory: Boolean(c[2]?.is_mandatory) })) }
@@ -74,8 +88,16 @@ export const Applications = () => {
 export function CandidateReview() {
   const { id } = useParams(); const go = useNavigate()
   const [{ applications, vacancies }, { decide }] = useStore()
-  const a = applications.find(x => String(x.id) === String(id))
-  const [d, setD] = useState(a?.decision === 'Shortlisted' || a?.decision === 'Hold' || a?.decision === 'Not shortlisted' ? a.decision : 'Shortlist')
+  const cached = applications.find(x => String(x.id) === String(id))
+  const [a, setA] = useState(cached || null)
+  useEffect(() => {
+    let active = true
+    request(`/api/applications/${id}`).then(apiApplication => {
+      if (active) setA(apiApplicationToClient(apiApplication))
+    }).catch(() => {})
+    return () => { active = false }
+  }, [id])
+  const [d, setD] = useState(cached?.decision === 'Shortlisted' || cached?.decision === 'Hold' || cached?.decision === 'Not shortlisted' ? cached.decision : 'Shortlist')
   const [note, setNote] = useState(a?.note || ''); const [saved, setSaved] = useState(false)
 
   if (!a) return <><Head title="Application not found" sub="It may have been removed"><LinkBtn to="/admin/applications" k="o">Back to ranking</LinkBtn></Head>
@@ -95,7 +117,7 @@ export function CandidateReview() {
   return <><Head title={a.name} sub={`${v?.title || 'Vacancy'} · Rank ${rank} of ${applications.filter(x => x.vacancyId === a.vacancyId).length}`}><LinkBtn to="/admin/applications" k="o">Back to ranking</LinkBtn></Head>
     <div className="g2" style={{ gridTemplateColumns: '1.6fr 1fr' }}><div className="col" style={{ gap: 22 }}>
       <div className="card row" style={{ gap: 24 }}>{a.score != null ? <Ring v={a.score} size={110} /> : <span className="mut">Not scored</span>}
-        <div><Chip>{a.score != null ? 'Strong match' : 'Needs manual check'}</Chip><h3 style={{ margin: '8px 0 4px' }}>{a.score != null ? 'Meets the required criteria' : 'Extraction was incomplete'}</h3>
+        <div><Chip>{scoreBand(a.score)}</Chip><h3 style={{ margin: '8px 0 4px' }}>{a.score != null ? 'Meets the required criteria' : 'Extraction was incomplete'}</h3>
           <span className="mut">{a.ext === 'Review' ? 'The document was scanned, so the extracted text may be unreliable — check the original file.' : 'All documents were read successfully.'}</span></div></div>
       <div className="card col"><h3>Why this score</h3>{cr.map((c, i) => { const detail = a.criterionScores?.[i]; const value = Number(detail?.score ?? sc[i] ?? 0); return <div className="col" style={{ gap: 6 }} key={c[0]}><div className="row sp"><b style={{ fontSize: 14 }}>{c[0]}</b><b>{value} / {c[1]}</b></div><Bar p={c[1] ? Math.round(value / c[1] * 100) : 0} /><p className="ev">{detail?.evidence || detail?.explanation || 'No matching evidence recorded.'}</p></div> })}</div>
       <div className="card col"><div className="row sp"><h3>Documents</h3>{a.ext === 'Review' && <Chip k="w">OCR confidence lower on this file</Chip>}</div><div className="row" style={{ flexWrap: 'wrap' }}>{a.files.map(f => <button className="btn o sm" key={f}>{f}</button>)}</div>
@@ -122,9 +144,15 @@ export function Compare() {
 }
 
 export const Users = () => {
-  const [{ user }, { signIn }] = useStore()
-  return <><Head title="Users" sub="Manage accounts and roles"><button className="btn" onClick={() => signIn({ email: 'william@example.com', password: 'director123' })}>Sign in as Director</button></Head>
-  <div className="card" style={{ padding: 8 }}><Table head={['User', 'Email', 'Role', 'Status', '']} rows={users.map(u => [<Person n={u[0]} />, u[1], <Chip k={u[2] === 'Director' ? 'b' : 'n'}>{u[2]}</Chip>, <Chip k={statusKind(u[3])}>{u[3]}</Chip>, <><a href="#">Edit</a> · <a href="#">Reset password</a></>])} /></div>
+  const [{ user, users }, { loadUsers }] = useStore()
+  const removeUser = u => {
+    if (u.role === 'director') return window.alert('Director accounts cannot be deleted from this page.')
+    if (!window.confirm(`Delete account ${u.name || u.full_name} (${u.email})? This cannot be undone.`)) return
+    request(`/api/auth/users/${u.id}`, { method: 'DELETE' }).then(() => { window.alert('Account deleted successfully.'); loadUsers() }).catch(error => window.alert(error.message))
+  }
+  return <><Head title="Users" sub="Manage registered accounts and roles"><button className="btn o" onClick={loadUsers}>Refresh users</button></Head>
+  <div className="card" style={{ padding: 8 }}><Table head={['User', 'Email', 'Role', 'Status', 'District', '']} rows={users.map(u => [<Person n={u.name || u.full_name} />, u.email, <Chip k={u.role === 'director' ? 'b' : 'n'}>{u.role === 'director' ? 'Director' : 'Applicant'}</Chip>, <Chip k={u.is_active ? '' : 'w'}>{u.is_active ? 'Active' : 'Disabled'}</Chip>, u.district || '—', u.role === 'director' ? 'Protected' : <button className="btn o sm" onClick={() => removeUser(u)}>Delete</button>])} /></div>
+  {users.length === 0 && <p className="mut p0">No registered accounts are available. Refresh after creating an account.</p>}
   {user && <p className="mut p0">You are signed in as <b>{user.name}</b>.</p>}</>
 }
 
@@ -169,3 +197,11 @@ export const Settings = () => <><Head title="Settings" sub="Screening, security 
     <div className="col" style={{ marginTop: 14 }}><Field label="Minimum extraction confidence (%)" id="mc" defaultValue="60" /><Field label="Maximum upload size (MB)" id="ms" defaultValue="5" /></div></div>
     <div className="col"><div className="card"><h3>Security</h3><Sw l="Require strong passwords" d="Minimum length and mixed characters" /><Field label="Session timeout (minutes)" id="st" defaultValue="30" /></div>
       <div className="card col"><h3>Data retention</h3><Field label="Keep applicant documents for (months)" id="rt" defaultValue="12" /><p className="mut p0">Audit logs record every screening run and decision.</p></div></div></div></>
+
+export const scoreBand = score => {
+  if (score == null) return 'Not scored'
+  if (score >= 80) return 'Strong match'
+  if (score >= 65) return 'Good match'
+  if (score >= 50) return 'Partial match'
+  return 'Weak match'
+}

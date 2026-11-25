@@ -8,7 +8,7 @@ storage details.
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class APIModel(BaseModel):
@@ -19,6 +19,7 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=200)
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=8, max_length=200)
+    password_confirmation: str | None = Field(default=None, min_length=8, max_length=200)
     phone: str | None = Field(default=None, max_length=40)
     district: str | None = Field(default=None, max_length=120)
     preferred_language: str = Field(default="en", max_length=10)
@@ -156,3 +157,32 @@ class ReportResponse(BaseModel):
     format: Literal["csv", "pdf"]
     filename: str
     download_url: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=32, max_length=500)
+    password: str = Field(min_length=8, max_length=200)
+    password_confirmation: str = Field(min_length=8, max_length=200)
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if self.password != self.password_confirmation:
+            raise ValueError("Password confirmation does not match")
+        if len(self.password) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(ch.isupper() for ch in self.password) or not any(ch.isdigit() for ch in self.password):
+            raise ValueError("Password must include one uppercase letter and one number")
+        return self
+
+
+class NotificationResponse(APIModel):
+    id: str
+    category: str
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime

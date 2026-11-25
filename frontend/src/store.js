@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { request, setToken, getToken, apiApplicationToClient, apiVacancyToClient } from './api.js'
 
-const KEY = 'tingathe.state.v2'
+const KEY = 'tingathe.state'
 const listeners = new Set()
 let bootstrapStarted = false
 let state = loadState()
@@ -12,9 +12,9 @@ let state = loadState()
 function loadState() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { user: null, vacancies: [], applications: [], audit: [], loading: false, error: '', ...JSON.parse(raw) }
+    if (raw) return { user: null, vacancies: [], applications: [], users: [], notifications: [], audit: [], loading: false, error: '', ...JSON.parse(raw) }
   } catch { /* start clean if storage is unavailable or corrupt */ }
-  return { user: null, vacancies: [], applications: [], audit: [], loading: false, error: '' }
+  return { user: null, vacancies: [], applications: [], users: [], notifications: [], audit: [], loading: false, error: '' }
 }
 
 function persist(next) {
@@ -51,6 +51,20 @@ async function refreshAudit() {
   return audit
 }
 
+async function refreshUsers() {
+  if (!state.user || state.user.role !== 'director') return []
+  const users = await request('/api/auth/users')
+  persist({ users, error: '' })
+  return users
+}
+
+async function refreshNotifications() {
+  if (!state.user) return []
+  const notifications = await request('/api/notifications')
+  persist({ notifications, error: '' })
+  return notifications
+}
+
 function capture(error) {
   const message = error?.message || 'Something went wrong. Please try again.'
   persist({ error: message, loading: false })
@@ -67,6 +81,8 @@ const actions = {
         replaceUser(me, getToken())
         await refreshApplications()
         await refreshAudit()
+        await refreshUsers()
+        await refreshNotifications()
       }
       persist({ loading: false })
     } catch (error) {
@@ -85,6 +101,8 @@ const actions = {
       replaceUser(result.user, result.access_token)
       await refreshApplications()
       await refreshAudit()
+      await refreshUsers()
+      await refreshNotifications()
       persist({ loading: false })
       return result.user
     } catch (error) { capture(error); throw error }
@@ -99,6 +117,7 @@ const actions = {
           full_name: details.name,
           email: details.email,
           password: details.password,
+          password_confirmation: details.passwordConfirmation,
           phone: details.phone || null,
           district: details.district || null,
           consent: true,
@@ -112,7 +131,7 @@ const actions = {
 
   async signOut() {
     setToken(null)
-    persist({ user: null, applications: [], audit: [], error: '' })
+    persist({ user: null, applications: [], audit: [], users: [], notifications: [], error: '' })
   },
 
   async loadVacancies() {
@@ -121,6 +140,14 @@ const actions = {
 
   async loadApplications() {
     try { return await refreshApplications() } catch (error) { capture(error); return [] }
+  },
+
+  async loadNotifications() {
+    try { return await refreshNotifications() } catch (error) { capture(error); return [] }
+  },
+
+  async loadUsers() {
+    try { return await refreshUsers() } catch (error) { capture(error); return [] }
   },
 
   async apply({ vacancyId, phone, note, files }) {
@@ -162,6 +189,22 @@ const actions = {
       persist({ applications: state.applications.map(item => item.id === application.id ? application : item), error: '' })
       return application
     } catch (error) { capture(error); throw error }
+  },
+
+  async markNotificationRead(id) {
+    try {
+      const result = await request(`/api/notifications/${id}/read`, { method: 'POST' })
+      persist({ notifications: state.notifications.map(item => item.id === id ? result : item) })
+      return result
+    } catch (error) { capture(error); throw error }
+  },
+
+  async forgotPassword(email) {
+    return await request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
+  },
+
+  async resetPassword(token, password, passwordConfirmation) {
+    return await request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password, password_confirmation: passwordConfirmation }) })
   },
 }
 

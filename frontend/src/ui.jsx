@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, Link, Navigate } from 'react-router-dom'
+import { NavLink, Outlet, Link, Navigate, useNavigate } from 'react-router-dom'
 import { ADMIN_NAV } from './data.js'
 import { useStore } from './store.js'
 import { getToken } from './api.js'
@@ -23,6 +23,10 @@ export const Stat = ({ l, v, n, i }) => <div className="card stat"><span classNa
 export const Bar = ({ p }) => <div className="bar"><i style={{ width: p + '%' }} /></div>
 export const Table = ({ head, rows }) => <div className="tw"><table><thead><tr>{head.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody></table></div>
 export const Field = ({ label, id, as: T = 'input', children, ...p }) => <div className="fld"><label htmlFor={id}>{label}</label><T id={id} {...p}>{children}</T></div>
+export const PasswordField = ({ label, id, value, onChange, required }) => {
+  const [visible, setVisible] = useState(false)
+  return <div className="fld"><label htmlFor={id}>{label}</label><div className="password-wrap"><input id={id} type={visible ? 'text' : 'password'} value={value} onChange={onChange} required={required} /><button type="button" className="password-toggle" aria-label={visible ? `Hide ${label}` : `Show ${label}`} onClick={() => setVisible(v => !v)}>{visible ? 'Hide' : 'Show'}</button></div></div>
+}
 export const Select = ({ label, id, options, ...p }) => <Field label={label} id={id} as="select" {...p}>{options.map(o => <option key={o}>{o}</option>)}</Field>
 export const Head = ({ title, sub, children }) => <div className="bar2"><div><h1>{title}</h1><p className="mut p0">{sub}</p></div><div className="row">{children}</div></div>
 export const LinkBtn = ({ to, k = '', children }) => <Link to={to} className={`btn ${k}`}>{children}</Link>
@@ -41,20 +45,22 @@ export function Dropzone({ label, hint, multiple, onFiles }) {
 }
 export const Brand = ({ light, sub = 'Careers' }) => <Link to="/" className={`brandlk ${light ? 'light' : ''}`}><span className="crest">T</span><span><b>Tingathe Secondary School</b><br /><small>{sub}</small></span></Link>
 export function PublicLayout() {
-  const [{ user }, { signOut }] = useStore()
+  const go = useNavigate(); const [{ user }, { signOut }] = useStore()
+  const logout = () => { if (window.confirm('Sign out of your account?')) { signOut(); go('/') } }
   return <><header className="pub-nav"><Brand /><nav aria-label="Main"><NavLink to="/" end>Vacancies</NavLink><NavLink to="/me">My applications</NavLink></nav>
     <div className="row" style={{ gap: 8 }}>{user
-      ? <><span className="mut" style={{ fontSize: 13.5 }}>{user.name}</span><button className="btn o sm" onClick={signOut}>Sign out</button></>
+      ? <><span className="mut" style={{ fontSize: 13.5 }}>{user.name}</span><button className="btn o sm" onClick={logout}>Sign out</button></>
       : <><Link to="/login" className="btn o sm">Sign in</Link><Link to="/register" className="btn sm">Create account</Link></>}</div></header>
     <Outlet /><footer className="foot">Tingathe Secondary School recruitment. Applications are screened with software support; every final decision is made by the Director.</footer></>
 }
 export function AdminLayout() {
-  const [lang, setLang] = useState('English'); const [{ user }, { signOut }] = useStore()
+  const go = useNavigate(); const [{ user, notifications }, { signOut, loadNotifications }] = useStore()
+  const logout = () => { if (window.confirm('Sign out of the Director workspace?')) { signOut(); go('/') } }
   if (!user && getToken()) return <div className="authr"><p className="mut">Loading your Director workspace…</p></div>
   if (!user || user.role !== 'director') return <Navigate to="/login" replace />
   return <div className="app"><nav className="sb" aria-label="Main"><Brand sub="Recruitment" />
     {ADMIN_NAV.map(([to, l, ic, end]) => <NavLink key={to} to={to} end={end} className="nv"><Icon n={ic} />{l}</NavLink>)}
-    <div className="me"><Av n={user?.name || 'Director'} /><span>{user?.role === 'director' ? 'Director' : 'Guest'}<br /><Link to="/login" onClick={signOut}>Sign out</Link></span></div></nav>
+    <div className="me"><Av n={user?.name || 'Director'} /><span>{user?.role === 'director' ? 'Director' : 'Guest'}<br /><button className="btn g sm" onClick={logout}>Sign out</button></span></div></nav>
     <main className="mn"><div className="top"><input className="search" aria-label="Search" placeholder="Search applicants, vacancies" />
-      <div className="row"><select aria-label="Language" value={lang} onChange={e => setLang(e.target.value)}><option>English</option><option>Chichewa</option></select><span className="bell" role="img" aria-label="Notifications"><Icon n="bell" /><i /></span></div></div><Outlet /></main></div>
+      <div className="row"><Link className="bell" to="/admin/settings" aria-label="Notifications" onClick={loadNotifications}><Icon n="bell" />{notifications.some(n => !n.is_read) && <i />}</Link></div></div><Outlet /></main></div>
 }

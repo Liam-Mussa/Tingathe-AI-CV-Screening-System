@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Chip, Field, Bar, VCard, Dropzone, Brand } from '../ui.jsx'
+import { Chip, Field, PasswordField, Bar, VCard, Dropzone, Brand } from '../ui.jsx'
 import { APP_STATUS } from '../data.js'
 import { useStore } from '../store.js'
 
@@ -71,12 +71,12 @@ export function VacancyDetail() {
 
 const ST = APP_STATUS
 export function MyApplications() {
-  const [{ user, applications, vacancies }, { signOut, loadApplications }] = useStore()
+  const [{ user, applications, vacancies }, { loadApplications }] = useStore()
   const mine = user ? applications : []
   return <section className="sec"><h1>My applications</h1><p className="mut">Follow where each application is. Scores are never shown to applicants.</p>
     {!user && <div className="card col" style={{ maxWidth: 520 }}><h3>You are not signed in</h3><p className="mut p0">Sign in to see the status of your applications, or create an account to apply.</p>
       <div className="row"><Link to="/login" className="btn">Sign in</Link><Link to="/register" className="btn o">Create account</Link></div></div>}
-    {user && <div className="row sp" style={{ flexWrap: 'wrap' }}><span className="mut">Signed in as <b>{user.name}</b></span><div className="row"><button className="btn o sm" onClick={loadApplications}>Refresh</button><button className="btn o sm" onClick={signOut}>Sign out</button></div></div>}
+    {user && <div className="row sp" style={{ flexWrap: 'wrap' }}><span className="mut">Signed in as <b>{user.name}</b></span><div className="row"><button className="btn o sm" onClick={loadApplications}>Refresh</button></div></div>}
     <div className="col" style={{ gap: 20 }}>{mine.map(a => { const v = vacancies.find(x => String(x.id) === String(a.vacancyId)); return <div className="card col" key={a.id}>
       <div className="row"><img src={`/images/${v.img}.svg`} alt="" style={{ width: 96, height: 64, borderRadius: 12, objectFit: 'cover' }} /><div style={{ flex: 1 }}><h3>{v.title}</h3><span className="mut">Applied {a.createdAt} · {a.files.length} document{a.files.length === 1 ? '' : 's'}</span></div><Chip k="b">{ST[a.status]}</Chip></div>
       <div className="row" style={{ gap: 6 }}>{ST.map((x, k) => <Bar key={x} p={k <= a.status ? 100 : 0} />)}</div><div className="row sp mut">{ST.map(x => <span key={x}>{x}</span>)}</div>
@@ -88,28 +88,57 @@ const Side = ({ h, p }) => <div className="authl"><Brand light /><div><h1>{h}</h
 const Tabs = ({ on }) => <div className="tabs"><Link to="/login" className={on === 0 ? 'on' : ''}>Sign in</Link><Link to="/register" className={on === 1 ? 'on' : ''}>Create account</Link></div>
 
 export function Login() {
-  const go = useNavigate(); const [{ error, loading }, { signIn }] = useStore(); const [f, setF] = useState({ email: '', password: '' }); const [localError, setLocalError] = useState('')
+  const go = useNavigate(); const [{ loading }, { signIn }] = useStore()
+  const [f, setF] = useState({ email: '', password: '' }); const [localError, setLocalError] = useState('')
   const up = k => e => setF({ ...f, [k]: e.target.value })
-  const login = (email, password, destination) => signIn({ email, password }).then(() => go(destination)).catch(error => setLocalError(error.message))
+  const submit = e => {
+    e.preventDefault(); setLocalError('')
+    if (!/^\S+@\S+\.\S+$/.test(f.email)) return setLocalError('Enter a valid email address.')
+    if (!f.password) return setLocalError('Enter your password.')
+    signIn({ email: f.email, password: f.password }).then(user => {
+      window.alert('Login successful. Welcome back!')
+      go(user.role === 'director' ? '/admin' : '/me')
+    }).catch(error => setLocalError(error.message || 'Invalid email or password. Please try again.'))
+  }
   return <div className="auth"><Side h="Welcome back." p="Sign in to apply for vacancies or review applications." />
-    <div className="authr"><div className="card col" style={{ width: 400 }}><Tabs on={0} /><h1 style={{ fontSize: 26 }}>Sign in</h1>
-      <Field label="Email" id="e" type="email" value={f.email} onChange={up('email')} /><Field label="Password" id="p" type="password" value={f.password} onChange={up('password')} />
-      <button className="btn" disabled={loading} onClick={() => login(f.email || 'chikondi@example.com', f.password || 'applicant123', '/me')}>Sign in as applicant (demo)</button>
-      <button className="btn o" disabled={loading} onClick={() => login(f.email || 'william@example.com', f.password || 'director123', '/admin')}>Sign in as Director (demo)</button>
-      {(localError || error) && <p className="p0" style={{ color: '#9B2C1F', fontSize: 13.5, fontWeight: 600 }}>{localError || error}</p>}
-    </div></div></div>
+    <div className="authr"><form className="card col" style={{ width: 400 }} onSubmit={submit}><Tabs on={0} /><h1 style={{ fontSize: 26 }}>Sign in</h1>
+      <Field label="Email" id="e" type="email" required value={f.email} onChange={up('email')} /><PasswordField label="Password" id="p" required value={f.password} onChange={up('password')} />
+      <div className="row sp"><span /><Link to="/forgot-password">Forgot password?</Link></div>
+      <button className="btn" type="submit" disabled={loading}>Sign in</button>
+      {localError && <p className="p0" style={{ color: '#9B2C1F', fontSize: 13.5, fontWeight: 600 }}>{localError}</p>}
+    </form></div></div>
 }
 export function Register() {
-  const go = useNavigate(); const [{ error, loading }, { register }] = useStore()
-  const [f, setF] = useState({ name: '', email: '', phone: '', district: '', password: '' }); const [ok, setOk] = useState(false)
+  const go = useNavigate(); const [{ loading }, { register }] = useStore()
+  const [f, setF] = useState({ name: '', email: '', phone: '', district: '', password: '', passwordConfirmation: '' }); const [ok, setOk] = useState(false)
   const [localError, setLocalError] = useState('')
   const up = k => e => setF({ ...f, [k]: e.target.value })
-  const done = f.name.trim() && f.email.trim() && f.password.trim() && ok
+  const submit = e => {
+    e.preventDefault(); setLocalError('')
+    if (!f.name.trim() || !/^\S+@\S+\.\S+$/.test(f.email)) return setLocalError('Enter your name and a valid email address.')
+    if (f.password.length < 8 || !/[A-Z]/.test(f.password) || !/[0-9]/.test(f.password)) return setLocalError('Password must have at least 8 characters, one uppercase letter and one number.')
+    if (f.password !== f.passwordConfirmation) return setLocalError('Password confirmation does not match.')
+    if (!ok) return setLocalError('You must agree to recruitment document processing.')
+    register(f).then(() => { window.alert('Your account has been created successfully.'); go('/me') }).catch(error => setLocalError(error.message || 'Registration failed.'))
+  }
   return <div className="auth"><Side h="Start your application." p="Create an account once, then apply to any open vacancy." />
-    <div className="authr"><div className="card col" style={{ width: 420 }}><Tabs on={1} /><Field label="Full name" id="a" value={f.name} onChange={up('name')} /><Field label="Email" id="b" type="email" value={f.email} onChange={up('email')} />
-      <Field label="Phone" id="c" type="tel" value={f.phone} onChange={up('phone')} /><Field label="District" id="d" value={f.district} onChange={up('district')} /><Field label="Password" id="f" type="password" value={f.password} onChange={up('password')} />
-      <label className="row" style={{ fontSize: 13.5, alignItems: 'flex-start' }}><input type="checkbox" checked={ok} onChange={e => setOk(e.target.checked)} style={{ width: 20, height: 20, accentColor: '#17305C' }} /> I agree to my documents being processed for recruitment screening.</label>
-      <button className="btn" disabled={!done || loading} onClick={() => register(f).then(() => go('/me')).catch(error => setLocalError(error.message))}>Create account</button>
-      {(localError || error) && <p className="p0" style={{ color: '#9B2C1F', fontSize: 13.5, fontWeight: 600 }}>{localError || error}</p>}
-    </div></div></div>
-}
+    <div className="authr"><form className="card col" style={{ width: 420 }} onSubmit={submit}><Tabs on={1} />
+      <Field label="Full name" id="a" required value={f.name} onChange={up('name')} /><Field label="Email" id="b" type="email" required value={f.email} onChange={up('email')} />
+      <Field label="Phone" id="c" type="tel" value={f.phone} onChange={up('phone')} /><Field label="District" id="d" value={f.district} onChange={up('district')} />
+      <PasswordField label="Password" id="f" required value={f.password} onChange={up('password')} /><PasswordField label="Confirm password" id="fc" required value={f.passwordConfirmation} onChange={up('passwordConfirmation')} />
+      <label className="row" style={{ fontSize: 13.5, alignItems: 'flex-start' }}><input type="checkbox" checked={ok} onChange={e => setOk(e.target.checked)} /> I agree to my documents being processed for recruitment screening.</label>
+      <button className="btn" type="submit" disabled={loading}>Create account</button>
+      {localError && <p className="p0" style={{ color: '#9B2C1F', fontSize: 13.5, fontWeight: 600 }}>{localError}</p>}
+    </form></div></div>
+  }
+  export function ForgotPassword() {
+    const [{ loading }, { forgotPassword }] = useStore(); const [email, setEmail] = useState(''); const [message, setMessage] = useState(''); const [error, setError] = useState(''); const [token, setToken] = useState('')
+    const submit = e => { e.preventDefault(); setError(''); setMessage(''); forgotPassword(email).then(result => { setToken(result.reset_token || ''); setMessage(result.message) }).catch(err => setError(err.message)) }
+    return <div className="auth"><Side h="Recover your account." p="Request a secure password reset link." /><div className="authr"><form className="card col" style={{ width: 420 }} onSubmit={submit}><Tabs on={0} /><h1 style={{ fontSize: 26 }}>Forgot password</h1><Field label="Registered email" id="reset-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} /><button className="btn" disabled={loading}>Request reset</button>{token && <><p className="mut p0">Development reset token:</p><code style={{ overflowWrap: 'anywhere' }}>{token}</code><Link className="btn o" to={`/reset-password/${token}`}>Continue to reset</Link></>}{message && <p style={{ color: '#176B3A' }}>{message}</p>}{error && <p style={{ color: '#9B2C1F' }}>{error}</p>}</form></div></div>
+  }
+  
+  export function ResetPassword() {
+    const { token } = useParams(); const go = useNavigate(); const [{ loading }, { resetPassword }] = useStore(); const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [error, setError] = useState('')
+    const submit = e => { e.preventEvent?.(); e.preventDefault(); setError(''); if (password !== confirmation) return setError('Password confirmation does not match.'); resetPassword(token, password, confirmation).then(() => { window.alert('Password reset successfully'); go('/login') }).catch(err => setError(err.message)) }
+    return <div className="auth"><Side h="Choose a new password." p="Use a strong password you have not used before." /><div className="authr"><form className="card col" style={{ width: 420 }} onSubmit={submit}><h1 style={{ fontSize: 26 }}>Reset password</h1><PasswordField label="New password" id="new-password" required value={password} onChange={e => setPassword(e.target.value)} /><PasswordField label="Confirm password" id="confirm-password" required value={confirmation} onChange={e => setConfirmation(e.target.value)} /><button className="btn" disabled={loading}>Set new password</button>{error && <p style={{ color: '#9B2C1F' }}>{error}</p>}</form></div></div>
+  }
