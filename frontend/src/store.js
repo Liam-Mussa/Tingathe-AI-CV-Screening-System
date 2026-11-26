@@ -150,12 +150,12 @@ const actions = {
     try { return await refreshUsers() } catch (error) { capture(error); return [] }
   },
 
-  async apply({ vacancyId, phone, note, files }) {
+  async apply({ vacancyId, applicant = {}, note, files }) {
     persist({ loading: true, error: '' })
     try {
       const form = new FormData()
       form.append('vacancy_id', String(vacancyId))
-      form.append('phone', phone || '')
+      Object.entries(applicant).forEach(([key, value]) => form.append(key, value || ''))
       form.append('note', note || '')
       for (const file of files || []) {
         if (file instanceof File) form.append('files', file, file.name)

@@ -1,8 +1,8 @@
 """CSV and PDF report generation."""
 from csv import writer
 from io import BytesIO, StringIO
-from pathlib import Path
 import re
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
@@ -94,7 +94,7 @@ def pdf_report(
     document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
     story = [
-        Paragraph(f"Tingathe recruitment report: {vacancy.title}", styles["Title"]),
+        Paragraph(f"Tingathe recruitment report: {escape(vacancy.title)}", styles["Title"]),
         Spacer(1, 12),
         Paragraph(f"{len(applications)} application(s) · generated for Director review", styles["Normal"]),
         Spacer(1, 18),

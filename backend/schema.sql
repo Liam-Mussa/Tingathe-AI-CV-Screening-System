@@ -7,7 +7,7 @@ CREATE TABLE categories (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name tex
 CREATE TABLE vacancies (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), category_id uuid REFERENCES categories(id), title text NOT NULL, summary text, description text, employment_type text, image_key text,
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','open','closed','archived')), closing_date date, created_by uuid REFERENCES users(id), created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE vacancy_criteria (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), vacancy_id uuid NOT NULL REFERENCES vacancies(id) ON DELETE CASCADE,
-  criterion_type text NOT NULL CHECK (criterion_type IN ('qualification','skill','experience','keyword')), label text NOT NULL, required_value text, weight numeric NOT NULL CHECK (weight >= 0), is_mandatory boolean NOT NULL DEFAULT false);
+  criterion_type text NOT NULL CHECK (criterion_type IN ('qualification','skill','experience','keyword')), label text NOT NULL, required_value text, weight numeric NOT NULL CHECK (weight >= 0), is_mandatory boolean NOT NULL DEFAULT false, is_applicable boolean NOT NULL DEFAULT true);
 CREATE TABLE applications (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), vacancy_id uuid NOT NULL REFERENCES vacancies(id), applicant_id uuid NOT NULL REFERENCES users(id),
   status text NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','processing','screened','needs_review','decided')), cover_note text, submitted_at timestamptz NOT NULL DEFAULT now(), UNIQUE (vacancy_id, applicant_id));
 CREATE TABLE documents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), application_id uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
@@ -17,7 +17,7 @@ CREATE TABLE extraction_runs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), doc
 CREATE TABLE candidate_profiles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), application_id uuid UNIQUE NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
   total_experience_months integer, extraction_status text CHECK (extraction_status IN ('ok','needs_review')), built_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE profile_items (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), profile_id uuid NOT NULL REFERENCES candidate_profiles(id) ON DELETE CASCADE,
-  item_type text NOT NULL CHECK (item_type IN ('education','skill','qualification','experience')), value text NOT NULL, institution text, start_date date, end_date date,
+  item_type text NOT NULL CHECK (item_type IN ('education','skill','qualification','experience','detail')), value text NOT NULL, institution text, start_date date, end_date date,
   source_document_id uuid REFERENCES documents(id), source_snippet text, confidence numeric);
 CREATE TABLE screening_results (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), application_id uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
   total_score numeric NOT NULL, rank integer, scoring_version text, run_at timestamptz NOT NULL DEFAULT now());

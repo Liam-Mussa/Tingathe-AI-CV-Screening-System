@@ -1,0 +1,7 @@
+﻿criterion,weight_percent,scoring_guidance
+Academic qualification,25,Compare level and relevance of academic qualification with the vacancy. Do not infer professional registration from a degree title.
+Teaching subject specialization,25,Compare stated teaching subject/subject combination with the vacancy subject.
+Teaching experience,20,Score relevant secondary-school teaching experience against the vacancy minimum and preferred experience.
+Teaching methodology and classroom management,15,"Look for lesson planning, learner-centred methods, classroom management, assessment and practical teaching evidence."
+Professional teaching qualification/training,10,Identify explicit teacher education or professional teaching training. Verify registration separately where required.
+Additional relevant skills,5,Compare additional skills that are relevant to the subject and school context.

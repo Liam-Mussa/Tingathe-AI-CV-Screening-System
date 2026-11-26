@@ -22,6 +22,7 @@ from api_helpers import (
 from config import ALLOWED_CONTENT_TYPES, STORAGE_DIR
 from extraction.documents import extract_document
 from models import (
+    ApplicantProfile,
     Application,
     CandidateProfile,
     CriterionScore,
@@ -34,7 +35,7 @@ from models import (
     User,
     Vacancy,
 )
-from nlp.profile import parse_document
+from nlp.profile import ProfileItemData, parse_document
 from schemas import ApplicationDecisionRequest, ApplicationResponse
 from scoring.engine import score_application
 
@@ -73,6 +74,87 @@ def _find_evidence_item(profile: CandidateProfile, evidence: str):
     return None
 
 
+def _add_form_profile_item(parsed, item_type: str, label: str, value: str, institution=None):
+    value = value.strip()
+    if value:
+        parsed.items.append(ProfileItemData(
+            item_type=item_type,
+            value=value[:300],
+            institution=institution[:200] if institution else None,
+            source_snippet=f"Application form: {label}: {value}",
+            confidence=1.0,
+        ))
+
+
+def _append_application_details(parsed, details: dict[str, str]) -> None:
+    qualification = details["highest_qualification"]
+    if qualification:
+        _add_form_profile_item(
+            parsed,
+            "qualification",
+            "Highest qualification",
+            qualification,
+            details["institution"] or None,
+        )
+    if details["graduation_year"]:
+        _add_form_profile_item(
+            parsed, "detail", "Graduation year", details["graduation_year"]
+        )
+    if details["teaching_subject_specialization"]:
+        _add_form_profile_item(
+            parsed,
+            "skill",
+            "Teaching subject specialization",
+            details["teaching_subject_specialization"],
+        )
+    if details["professional_teaching_qualification_or_training"]:
+        _add_form_profile_item(
+            parsed,
+            "qualification",
+            "Professional teaching qualification or training",
+            details["professional_teaching_qualification_or_training"],
+        )
+
+    for label in (
+        "teaching_methods_and_competencies",
+        "subject_specific_skills",
+        "additional_skills",
+    ):
+        for value in re.split(r"[;,\n]+", details[label]):
+            _add_form_profile_item(parsed, "skill", label.replace("_", " "), value)
+
+    if details["teaching_experience_summary"]:
+        _add_form_profile_item(
+            parsed,
+            "experience",
+            "Teaching experience summary",
+            details["teaching_experience_summary"],
+        )
+    for label in ("most_recent_school", "employment_status"):
+        if details[label]:
+            _add_form_profile_item(
+                parsed, "detail", label.replace("_", " "), details[label]
+            )
+
+    years = details["years_secondary_teaching_experience"]
+    if years:
+        try:
+            months = round(float(years) * 12)
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="Teaching experience must be a non-negative number of years",
+            ) from None
+        if months < 0 or months > 60 * 12:
+            raise HTTPException(
+                status_code=422,
+                detail="Teaching experience must be between 0 and 60 years",
+            )
+        parsed.total_experience_months = max(
+            parsed.total_experience_months or 0, months
+        )
+
+
 def _get_application(db: Session, application_id: str) -> Application:
     application = db.get(Application, _parse_uuid(application_id))
     if not application:
@@ -101,8 +183,22 @@ async def submit_application(
     db: DB,
     user: User = Depends(current_user),
     vacancy_id: str = Form(...),
+    full_name: str = Form(default=""),
     phone: str = Form(default=""),
+    district: str = Form(default=""),
     note: str = Form(default=""),
+    highest_qualification: str = Form(default=""),
+    institution: str = Form(default=""),
+    graduation_year: str = Form(default=""),
+    teaching_subject_specialization: str = Form(default=""),
+    years_secondary_teaching_experience: str = Form(default=""),
+    teaching_experience_summary: str = Form(default=""),
+    professional_teaching_qualification_or_training: str = Form(default=""),
+    teaching_methods_and_competencies: str = Form(default=""),
+    subject_specific_skills: str = Form(default=""),
+    additional_skills: str = Form(default=""),
+    most_recent_school: str = Form(default=""),
+    employment_status: str = Form(default=""),
     files: list[UploadFile] = File(default=[]),
 ):
     """Submit documents and run the first explainable screening pass."""
@@ -111,8 +207,32 @@ async def submit_application(
         raise HTTPException(status_code=404, detail="Vacancy is not open")
     if not files:
         raise HTTPException(status_code=400, detail="Upload at least one CV or qualification document")
+    if years_secondary_teaching_experience.strip():
+        try:
+            years = float(years_secondary_teaching_experience)
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="Teaching experience must be a non-negative number of years",
+            ) from None
+        if years < 0 or years > 60:
+            raise HTTPException(
+                status_code=422,
+                detail="Teaching experience must be between 0 and 60 years",
+            )
+    if full_name.strip():
+        if len(full_name.strip()) < 2:
+            raise HTTPException(status_code=422, detail="Full name must contain at least 2 characters")
+        user.full_name = full_name.strip()[:200]
     if phone.strip():
-        user.phone = phone.strip()
+        user.phone = phone.strip()[:40]
+    applicant_profile = user.profile
+    if applicant_profile is None:
+        applicant_profile = ApplicantProfile(user_id=user.id)
+        db.add(applicant_profile)
+        user.profile = applicant_profile
+    if district.strip():
+        applicant_profile.district = district.strip()[:120]
 
     uploads: list[tuple[UploadFile, bytes, str]] = []
     for upload in files:
@@ -171,6 +291,21 @@ async def submit_application(
         extraction_needs_review = extraction_needs_review or outcome.needs_review
 
     parsed = parse_document("\n\n".join(text for text in extracted_text if text.strip()))
+    details = {
+        "highest_qualification": highest_qualification,
+        "institution": institution,
+        "graduation_year": graduation_year,
+        "teaching_subject_specialization": teaching_subject_specialization,
+        "years_secondary_teaching_experience": years_secondary_teaching_experience,
+        "teaching_experience_summary": teaching_experience_summary,
+        "professional_teaching_qualification_or_training": professional_teaching_qualification_or_training,
+        "teaching_methods_and_competencies": teaching_methods_and_competencies,
+        "subject_specific_skills": subject_specific_skills,
+        "additional_skills": additional_skills,
+        "most_recent_school": most_recent_school,
+        "employment_status": employment_status,
+    }
+    _append_application_details(parsed, details)
     profile_needs_review = extraction_needs_review or parsed.needs_review
     candidate_profile = CandidateProfile(
         application_id=application.id,
@@ -188,7 +323,12 @@ async def submit_application(
             institution=item.institution,
             source_snippet=item.source_snippet,
             confidence=item.confidence,
-            source_document_id=application.documents[0].id if application.documents else None,
+            source_document_id=(
+                application.documents[0].id
+                if application.documents
+                and not item.source_snippet.startswith("Application form:")
+                else None
+            ),
         ))
     db.flush()
 
@@ -253,6 +393,62 @@ def get_application(
 ):
     application = _get_application(db, application_id)
     _can_view(application, user)
+    return application_response(application)
+
+
+@router.post("/{application_id}/rescore", response_model=ApplicationResponse)
+def rescore_application(
+    application_id: str,
+    db: DB,
+    user: User = Depends(director_only),
+):
+    """Run and persist a fresh score using the current vacancy rubric."""
+    application = _get_application(db, application_id)
+    if not application.profile:
+        raise HTTPException(
+            status_code=409,
+            detail="This application has no saved candidate profile to score",
+        )
+
+    outcome = score_application(application.profile, application.vacancy.criteria)
+    result = ScreeningResult(
+        application_id=application.id,
+        total_score=outcome.total_score,
+        scoring_version=outcome.scoring_version,
+        run_at=datetime.utcnow(),
+    )
+    db.add(result)
+    db.flush()
+    criteria_by_id = {
+        str(criterion.id): criterion
+        for criterion in application.vacancy.criteria
+    }
+    for item in outcome.scores:
+        criterion = criteria_by_id.get(item.criterion_id)
+        if not criterion:
+            continue
+        evidence_item = _find_evidence_item(application.profile, item.evidence)
+        db.add(CriterionScore(
+            result_id=result.id,
+            criterion_id=criterion.id,
+            matched=item.matched,
+            score=item.score,
+            evidence_item_id=evidence_item.id if evidence_item else None,
+            explanation=item.explanation,
+        ))
+
+    if application.status != "decided":
+        application.status = (
+            "needs_review"
+            if application.profile.extraction_status == "needs_review"
+            else "screened"
+        )
+    audit(db, "Screening run completed", user.id, "application", str(application.id), {
+        "score": outcome.total_score,
+        "rescore": True,
+    })
+    db.commit()
+    db.refresh(application)
     return application_response(application)
 
 

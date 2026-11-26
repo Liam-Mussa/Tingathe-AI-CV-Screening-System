@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from api_helpers import DB, audit, director_only, optional_user, vacancy_response, _parse_uuid
 from models import Category, User, Vacancy, VacancyCriterion
 from schemas import VacancyRequest, VacancyResponse
+from scoring.criteria import criterion_key
 
 router = APIRouter(prefix="/api/vacancies", tags=["vacancies"])
 
@@ -28,18 +29,35 @@ def _category(db: Session, name: str) -> Category:
 
 
 def _replace_criteria(vacancy: Vacancy, criteria: list) -> None:
-    vacancy.criteria.clear()
-    vacancy.criteria.extend([
-        VacancyCriterion(
-            criterion_type=item.criterion_type,
-            label=item.label.strip(),
-            required_value=(item.required_value or item.label).strip(),
-            weight=item.weight,
-            is_mandatory=item.is_mandatory,
+    existing = {criterion_key(item.label): item for item in vacancy.criteria}
+    for item in criteria:
+        key = criterion_key(item.label)
+        if not key:
+            continue
+        criterion = existing.pop(key, None)
+        if criterion is None:
+            criterion = VacancyCriterion()
+            vacancy.criteria.append(criterion)
+        criterion.criterion_type = item.criterion_type
+        criterion.label = item.label.strip()
+        criterion.required_value = (item.required_value or item.label).strip()
+        criterion.weight = item.weight
+        criterion.is_mandatory = item.is_mandatory
+        criterion.is_applicable = item.is_applicable
+
+    for criterion in existing.values():
+        if criterion.scores:
+            criterion.is_applicable = False
+        else:
+            vacancy.criteria.remove(criterion)
+
+
+def _validate_closing_date(closing_date: date | None, earliest_date: date) -> None:
+    if closing_date is not None and closing_date < earliest_date:
+        raise HTTPException(
+            status_code=422,
+            detail="Closing date must be today or a future date.",
         )
-        for item in criteria
-        if item.label.strip()
-    ])
 
 
 @router.get("", response_model=list[VacancyResponse])
@@ -74,6 +92,7 @@ def create_vacancy(
     db: DB,
     user: User = Depends(director_only),
 ):
+    _validate_closing_date(payload.closing_date, date.today())
     if payload.status == "open" and not payload.criteria:
         raise HTTPException(status_code=400, detail="An open vacancy needs at least one criterion")
     category = _category(db, payload.category)
@@ -105,6 +124,7 @@ def update_vacancy(
     user: User = Depends(director_only),
 ):
     vacancy = _get_vacancy(db, vacancy_id)
+    _validate_closing_date(payload.closing_date, date.today())
     category = _category(db, payload.category)
     vacancy.category_id = category.id
     vacancy.title = payload.title.strip()

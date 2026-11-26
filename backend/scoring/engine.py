@@ -16,6 +16,8 @@ import re
 from pathlib import Path
 from dataclasses import dataclass, field
 
+from scoring.criteria import FIXED_CRITERION_TYPES, FIXED_SCORING_CRITERIA
+
 # Words that add nothing when matching a skill or qualification.
 STOP_WORDS = {
     "and", "or", "the", "a", "an", "of", "in", "with", "for", "to", "at",
@@ -23,14 +25,7 @@ STOP_WORDS = {
     "proficiency", "understanding", "strong", "good", "excellent", "demonstrated",
 }
 
-DATASET_CRITERIA = {
-    "academic qualification": 25,
-    "teaching subject specialization": 25,
-    "teaching experience": 20,
-    "teaching methodology and classroom management": 15,
-    "professional teaching qualification/training": 10,
-    "additional relevant skills": 5,
-}
+DATASET_CRITERIA = dict(FIXED_SCORING_CRITERIA)
 
 SUBJECT_ALIASES = {
     "mathematics": {"mathematics", "math", "algebra", "geometry", "statistics", "trigonometry", "mechanics"},
@@ -58,6 +53,7 @@ class CriterionScoreData:
     score: float
     explanation: str
     evidence: str = ""
+    is_applicable: bool = True
 
 
 @dataclass
@@ -85,6 +81,8 @@ def _haystack(profile) -> str:
     """All of a candidate's profile text, used for matching."""
     parts = []
     for item in profile.items:
+        if item.item_type == "detail":
+            continue
         parts.append(item.value)
         if getattr(item, "institution", None):
             parts.append(item.institution)
@@ -119,7 +117,11 @@ def score_application(profile, criteria) -> ScoringOutcome:
     have_tokens = _tokens(_haystack(profile))
     have_text = _haystack(profile)
 
-    total_weight = sum(float(c.weight or 0) for c in criteria) or 1.0
+    total_weight = sum(
+        _dataset_weight(c.label) or float(c.weight or 0)
+        for c in criteria
+        if getattr(c, "is_applicable", True)
+    ) or 1.0
     raw_total = 0.0
     scores: list = []
     mandatory_failures: list = []
@@ -129,19 +131,30 @@ def score_application(profile, criteria) -> ScoringOutcome:
         label = criterion.label
         ctype = criterion.criterion_type
         required = getattr(criterion, "required_value", None) or label
-        dataset_weight = _dataset_weight(label)
-        if dataset_weight is not None:
-            weight = dataset_weight
-
         category = _dataset_category(label)
+        if category:
+            weight = DATASET_CRITERIA[category]
+            ctype = FIXED_CRITERION_TYPES[category]
+        if not getattr(criterion, "is_applicable", True):
+            scores.append(CriterionScoreData(
+                criterion_id=str(criterion.id),
+                criterion_type=ctype,
+                label=label,
+                weight=weight,
+                matched=False,
+                score=0.0,
+                explanation="Not applicable to this vacancy; excluded from the score.",
+                is_applicable=False,
+            ))
+            continue
         if category == "teaching subject specialization":
             matched, awarded, evidence, explanation = _score_subject_specialization(profile, required, have_text, weight)
         elif category == "professional teaching qualification/training":
             matched, awarded, evidence, explanation = _score_professional_training(profile, have_text, weight)
         elif category == "teaching methodology and classroom management":
-            matched, awarded, evidence, explanation = _score_methodology(have_text, weight)
+            matched, awarded, evidence, explanation = _score_methodology(have_text, weight, required)
         elif category == "additional relevant skills":
-            matched, awarded, evidence, explanation = _score_additional_skills(have_text, weight)
+            matched, awarded, evidence, explanation = _score_additional_skills(have_text, weight, required)
         elif ctype == "experience":
             matched, awarded, evidence, explanation = _score_experience(profile, required, weight)
         elif ctype == "qualification":
@@ -157,7 +170,7 @@ def score_application(profile, criteria) -> ScoringOutcome:
                 profile, required, have_tokens, have_text, weight
             )
 
-        if getattr(criterion, "is_mandatory", False) and not matched:
+        if not category and getattr(criterion, "is_mandatory", False) and not matched:
             mandatory_failures.append(label)
 
         raw_total += awarded
@@ -170,6 +183,7 @@ def score_application(profile, criteria) -> ScoringOutcome:
             score=round(awarded, 2),
             explanation=explanation,
             evidence=evidence,
+            is_applicable=True,
         ))
 
     # Scale to a 0-100 total.
@@ -213,7 +227,10 @@ def _score_qualification(profile, required, have_tokens, have_text, weight):
 
         if required_level:
             if candidate_level == required_level:
-                ratio = 1.0 if field_ratio >= 0.60 else 0.35
+                required_subjects = _subject_from_text(required)
+                candidate_subjects = _subject_from_text(candidate_text)
+                subject_match = bool(required_subjects & candidate_subjects)
+                ratio = 1.0 if field_ratio >= 0.60 or subject_match else 0.35
             elif candidate_level > required_level:
                 subject_required = _tokens(re.sub(r"\b(bachelor|master|doctorate|phd|diploma|advanced diploma|higher diploma|certificate|mba)\b", " ", required))
                 subject_candidate = _tokens(re.sub(r"\b(bachelor|master|doctorate|phd|diploma|advanced diploma|higher diploma|certificate|mba)\b", " ", candidate_text))
@@ -274,10 +291,40 @@ def _score_professional_training(profile, have_text, weight):
     return False, 0.0, "", "No explicit professional teaching qualification or training was stated."
 
 
-def _score_methodology(have_text, weight):
-    terms = ("lesson planning", "classroom management", "learner-centred", "assessment", "continuous assessment", "practical", "scheme of work")
-    low = _normalise(have_text)
-    hits = [term for term in terms if term in low]
+_METHODOLOGY_MARKERS = {
+    "lesson", "planning", "classroom", "management", "assessment",
+    "learner", "centred", "scheme", "teaching", "method",
+}
+
+
+def _required_skill_terms(required):
+    return [
+        term.strip()
+        for term in re.split(r"[;,]", str(required))
+        if term.strip()
+    ]
+
+
+def _matched_skill_terms(terms, have_text):
+    have_tokens = _tokens(have_text)
+    return [
+        term for term in terms
+        if _normalise(term) in have_text
+        or _match_ratio(term, have_tokens, have_text) >= 0.6
+    ]
+
+
+def _score_methodology(have_text, weight, required):
+    terms = [
+        term for term in _required_skill_terms(required)
+        if _tokens(term) & _METHODOLOGY_MARKERS
+    ]
+    if not terms:
+        terms = [
+            "lesson planning", "classroom management", "learner centred teaching",
+            "assessment", "continuous assessment", "practical", "scheme of work",
+        ]
+    hits = _matched_skill_terms(terms, have_text)
     ratio = len(hits) / len(terms)
     if ratio >= 0.50:
         return True, weight * min(1.0, 0.75 + ratio * 0.25), "; ".join(hits), f"Methodology evidence found: {', '.join(hits)}."
@@ -286,10 +333,18 @@ def _score_methodology(have_text, weight):
     return False, 0.0, "", "No methodology or classroom-management evidence was found."
 
 
-def _score_additional_skills(have_text, weight):
-    terms = ("ict", "computer", "record keeping", "examination", "remedial", "group work", "scheme of work", "practical")
-    low = _normalise(have_text)
-    hits = [term for term in terms if term in low]
+def _score_additional_skills(have_text, weight, required):
+    required_terms = _required_skill_terms(required)
+    terms = [
+        term for term in required_terms
+        if not (_tokens(term) & _METHODOLOGY_MARKERS)
+    ]
+    if not terms:
+        terms = [
+            "ict", "computer", "record keeping", "examination", "remedial",
+            "group work", "scheme of work", "practical",
+        ]
+    hits = _matched_skill_terms(terms, have_text)
     ratio = len(hits) / len(terms)
     if not hits:
         return False, 0.0, "", "No additional relevant skills were found."
@@ -354,7 +409,7 @@ def _dataset_category(label: str) -> str | None:
 def _dataset_weight(label: str) -> float | None:
     category = _dataset_category(label)
     if category:
-        return float(TRAINED_MODEL.get("criteria", {}).get(category, DATASET_CRITERIA.get(category)))
+        return DATASET_CRITERIA.get(category)
     return None
 
 
@@ -363,6 +418,9 @@ def _subject_from_text(text: str) -> set:
     subjects = set()
     for subject, aliases in SUBJECT_ALIASES.items():
         if any(alias in low for alias in aliases):
+            subjects.add(subject)
+    for subject in TRAINED_MODEL.get("subject_vocabularies", {}):
+        if subject and subject in low:
             subjects.add(subject)
     return subjects
 
@@ -381,6 +439,7 @@ def _score_subject_specialization(profile, required, have_text, weight):
         return True, weight, evidence, f"Teaching subject specialization is relevant to '{required}'."
     if ratio >= 0.6:
         return True, weight * ratio, evidence, f"Teaching subject is partially relevant to '{required}'."
+    return False, 0.0, evidence, f"Teaching subject specialization does not match '{required}'."
 
 
 def _load_trained_model():

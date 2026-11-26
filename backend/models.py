@@ -127,6 +127,7 @@ class VacancyCriterion(Base):
     required_value = Column(String(200))
     weight = Column(Numeric(6, 2), nullable=False, default=0)
     is_mandatory = Column(Boolean, nullable=False, default=False)
+    is_applicable = Column(Boolean, nullable=False, default=True)
 
     vacancy = relationship("Vacancy", back_populates="criteria")
     scores = relationship("CriterionScore", back_populates="criterion")
@@ -195,13 +196,16 @@ class CandidateProfile(Base):
     application = relationship("Application", back_populates="profile")
     items = relationship("ProfileItem", back_populates="profile", cascade="all, delete-orphan")
 
+    def by_type(self, *types):
+        return [item for item in self.items if item.item_type in types]
+
 
 class ProfileItem(Base):
     __tablename__ = "profile_items"
 
     id = Column(GUID(), primary_key=True, default=_uuid)
     profile_id = Column(GUID(), ForeignKey("candidate_profiles.id", ondelete="CASCADE"), nullable=False)
-    item_type = Column(String(20), nullable=False)  # education | skill | qualification | experience
+    item_type = Column(String(20), nullable=False)  # education | skill | qualification | experience | detail
     value = Column(String(300), nullable=False)
     institution = Column(String(200))
     start_date = Column(Date)

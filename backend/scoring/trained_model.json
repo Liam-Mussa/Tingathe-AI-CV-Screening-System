@@ -1,11 +1,13 @@
 {
   "source": "tingathe_demo_dataset.xlsx",
+  "vacancy_source": "vacancies.csv",
+  "applicant_records_used": 30,
   "criteria": {
     "academic qualification": 25.0,
     "teaching subject specialization": 25.0,
     "teaching experience": 20.0,
     "teaching methodology and classroom management": 15.0,
-    "professional teaching qualification training": 10.0,
+    "professional teaching qualification/training": 10.0,
     "additional relevant skills": 5.0
   },
   "subject_vocabularies": {
@@ -161,24 +163,36 @@
   },
   "vacancies": {
     "Mathematics": {
+      "vacancy_id": "VAC-MATH-01",
+      "job_title": "Secondary School Mathematics Teacher",
       "minimum_qualification": "Bachelor of Education (Mathematics) or relevant recognised teaching qualification with Mathematics specialization",
       "minimum_experience": 2.0,
-      "required_skills": "Lesson planning; classroom management; assessment; algebra; geometry; statistics"
+      "required_skills": "Lesson planning; classroom management; assessment; algebra; geometry; statistics",
+      "location": "Lilongwe District"
     },
     "Biology": {
+      "vacancy_id": "VAC-BIO-01",
+      "job_title": "Secondary School Biology Teacher",
       "minimum_qualification": "Bachelor of Education (Biology) or relevant recognised teaching qualification with Biology specialization",
       "minimum_experience": 2.0,
-      "required_skills": "Lesson planning; classroom management; practical/laboratory teaching; assessment; ecology; human biology"
+      "required_skills": "Lesson planning; classroom management; practical/laboratory teaching; assessment; ecology; human biology",
+      "location": "Salima District"
     },
     "English": {
+      "vacancy_id": "VAC-ENG-01",
+      "job_title": "Secondary School English Teacher",
       "minimum_qualification": "Bachelor of Education (English) or relevant recognised teaching qualification with English specialization",
       "minimum_experience": 2.0,
-      "required_skills": "Lesson planning; classroom management; grammar; composition; reading comprehension; assessment"
+      "required_skills": "Lesson planning; classroom management; grammar; composition; reading comprehension; assessment",
+      "location": "Zomba District"
     },
     "Computer Studies": {
+      "vacancy_id": "VAC-COMP-01",
+      "job_title": "Secondary School Computer Studies Teacher",
       "minimum_qualification": "Bachelor of Education (ICT/Computer Studies) or relevant recognised teaching qualification with ICT/Computer Studies specialization",
       "minimum_experience": 1.0,
-      "required_skills": "Lesson planning; classroom management; computer literacy; programming fundamentals; office applications; practical lab instruction"
+      "required_skills": "Lesson planning; classroom management; computer literacy; programming fundamentals; office applications; practical lab instruction",
+      "location": "Blantyre District"
     }
   }
 }

@@ -102,6 +102,7 @@ def _criterion_response(criterion) -> CriterionResponse:
         required_value=criterion.required_value,
         weight=float(criterion.weight or 0),
         is_mandatory=criterion.is_mandatory,
+        is_applicable=criterion.is_applicable,
     )
 
 
@@ -153,6 +154,7 @@ def application_response(application: Application) -> ApplicationResponse:
                 matched=item.matched,
                 score=float(item.score or 0),
                 weight=float(item.criterion.weight or 0),
+                is_applicable=item.criterion.is_applicable,
                 explanation=item.explanation or "No explanation recorded.",
                 evidence=item.evidence_item_id and next(
                     (profile_item.source_snippet or profile_item.value
@@ -180,7 +182,9 @@ def application_response(application: Application) -> ApplicationResponse:
         vacancy_title=application.vacancy.title if application.vacancy else None,
         applicant_id=str(application.applicant_id),
         name=application.applicant.full_name,
+        email=application.applicant.email,
         phone=application.applicant.phone,
+        district=application.applicant.profile.district if application.applicant.profile else None,
         note=application.cover_note,
         cover_note=application.cover_note,
         files=names,

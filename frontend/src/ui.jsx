@@ -13,7 +13,8 @@ const I = {
  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
  shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
  bell:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
- upload:'<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/>' }
+ upload:'<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/>',
+ search:'<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>' }
 export const Icon = ({ n }) => <svg className="ic" viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: I[n] }} />
 export const statusKind = s => ({ Open: '', Draft: 'n', Closed: 'r', Active: '', Disabled: 'r', Complete: '', Review: 'w' }[s] ?? 'n')
 export const Chip = ({ k = '', children }) => <span className={`chip ${k}`}>{children}</span>
@@ -34,9 +35,19 @@ export function Ring({ v, size = 96 }) {
   const r = 40, c = 2 * Math.PI * r
   return <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label={`Score ${v} out of 100`}><circle cx="50" cy="50" r={r} fill="none" stroke="#E4E7EE" strokeWidth="9" /><circle cx="50" cy="50" r={r} fill="none" stroke="#17305C" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${c * v / 100} ${c}`} transform="rotate(-90 50 50)" /><text x="50" y="58" textAnchor="middle" fontSize="28" fontWeight="800" fill="#101828">{v}</text></svg>
 }
-export const VCard = ({ v, to, admin }) => <Link to={to} className="vcard"><div className="vimg"><img src={`/images/${v.img}.svg`} alt="" /><Chip k={statusKind(v.status)}>{v.status}</Chip></div>
+export const VCard = ({ v, to, admin }) => {
+  const requirements = (v.criteria || [])
+    .filter(criterion => criterion[2]?.is_applicable !== false)
+    .map(criterion => criterion[2]?.required_value || criterion[0])
+    .filter(Boolean)
+    .filter((requirement, index, all) =>
+      all.findIndex(value => value.toLocaleLowerCase() === requirement.toLocaleLowerCase()) === index
+    )
+  return <Link to={to} className="vcard"><div className="vimg"><img src={`/images/${v.img}.svg`} alt="" /><Chip k={statusKind(v.status)}>{v.status}</Chip></div>
   <div className="vbody"><span className="mut">{v.cat} · {v.type}</span><h3>{v.title}</h3><p className="mut">{v.summary}</p>
+    {requirements.length > 0 && <div className="vrequirements"><b>Requirements</b><ul>{requirements.map((requirement, index) => <li key={`${index}-${requirement}`}>{requirement}</li>)}</ul></div>}
     <div className="row sp"><span className="mut">{admin ? `${v.applicants} applicants` : `Closes ${v.closes}`}</span><span className="arrow">{admin ? 'Manage' : 'View and apply'} →</span></div></div></Link>
+}
 export function Dropzone({ label, hint, multiple, onFiles }) {
   const [f, setF] = useState([])
   const pick = e => { const files = [...e.target.files]; setF(files.map(x => x.name)); onFiles && onFiles(files) }
@@ -54,13 +65,19 @@ export function PublicLayout() {
     <Outlet /><footer className="foot">Tingathe Secondary School recruitment. Applications are screened with software support; every final decision is made by the Director.</footer></>
 }
 export function AdminLayout() {
-  const go = useNavigate(); const [{ user, notifications }, { signOut, loadNotifications }] = useStore()
+  const go = useNavigate(); const [{ user, notifications }, { signOut }] = useStore()
+  const [search, setSearch] = useState('')
   const logout = () => { if (window.confirm('Sign out of the Director workspace?')) { signOut(); go('/') } }
+  const submitSearch = event => {
+    event.preventDefault()
+    const query = search.trim()
+    if (query) go(`/admin/search?q=${encodeURIComponent(query)}`)
+  }
   if (!user && getToken()) return <div className="authr"><p className="mut">Loading your Director workspace…</p></div>
   if (!user || user.role !== 'director') return <Navigate to="/login" replace />
   return <div className="app"><nav className="sb" aria-label="Main"><Brand sub="Recruitment" />
     {ADMIN_NAV.map(([to, l, ic, end]) => <NavLink key={to} to={to} end={end} className="nv"><Icon n={ic} />{l}</NavLink>)}
     <div className="me"><Av n={user?.name || 'Director'} /><span>{user?.role === 'director' ? 'Director' : 'Guest'}<br /><button className="btn g sm" onClick={logout}>Sign out</button></span></div></nav>
-    <main className="mn"><div className="top"><input className="search" aria-label="Search" placeholder="Search applicants, vacancies" />
-      <div className="row"><Link className="bell" to="/admin/settings" aria-label="Notifications" onClick={loadNotifications}><Icon n="bell" />{notifications.some(n => !n.is_read) && <i />}</Link></div></div><Outlet /></main></div>
+    <main className="mn"><div className="top"><form className="search-form" role="search" onSubmit={submitSearch}><input className="search" aria-label="Search applicants and vacancies" placeholder="Search applicants, vacancies" value={search} onChange={event => setSearch(event.target.value)} /><button className="search-submit" type="submit" aria-label="Search"><Icon n="search" /></button></form>
+      <div className="row"><Link className="bell" to="/admin/notifications" aria-label="Notifications"><Icon n="bell" />{notifications.some(n => !n.is_read) && <i />}</Link></div></div><Outlet /></main></div>
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Chip, Field, PasswordField, Bar, VCard, Dropzone, Brand } from '../ui.jsx'
 import { APP_STATUS } from '../data.js'
@@ -11,7 +11,7 @@ export function Landing() {
     <section className="hero"><div><span className="eyebrow">Now hiring</span><h1>Teach, lead and grow at Tingathe Secondary School.</h1>
       <p>Apply online in minutes, from your phone or computer. Your documents help our Director compare applications fairly, and a person makes every final decision.</p>
       <div className="row" style={{ marginTop: 24, flexWrap: 'wrap' }}><a href="#vacancies" className="btn gold">See open vacancies</a><Link to="/register" className="btn ghost">Create account</Link></div></div>
-      <div className="hero-photo"><img src="/images/IMG-20261116-WA0675.jpg.jpeg" alt="Tingathe Secondary School students celebrating together" /><img className="hero-inset" src="/images/IMG-20261116-WA7812.jpg.jpeg" alt="Tingathe Secondary School building and students" /></div></section>
+      <div className="hero-photo"><img src="/images/IMG-20261116-WA0675.jpg.jpeg" alt="Tingathe Secondary School students celebrating together" /></div></section>
     <div className="strip"><div>{open.length} open vacancies</div><div>PDF, Word and scanned files <span>accepted</span></div><div>Track your application <span>online</span></div><div>Final decision by <span>a person</span></div></div>
     <section className="sec" id="vacancies"><h2>Open vacancies</h2><p className="mut">Choose a role to read the requirements and apply.</p>
       <div className="vgrid">{open.map(v => <VCard key={v.id} v={v} to={`/vacancies/${v.id}`} />)}</div></section>
@@ -26,21 +26,43 @@ export function VacancyDetail() {
   const [{ user, vacancies }, { apply }] = useStore()
   const v = vacancies.find(x => String(x.id) === id) || vacancies[0]
   const [step, setStep] = useState(0); const steps = ['Documents', 'Details', 'Review']
-  const [files, setFiles] = useState([]); const [phone, setPhone] = useState(user?.phone || ''); const [note, setNote] = useState('')
+  const [files, setFiles] = useState([])
+  const [applicant, setApplicant] = useState({
+    full_name: user?.name || user?.full_name || '',
+    phone: user?.phone || '',
+    district: user?.district || '',
+    employment_status: '',
+  })
   const [consent, setConsent] = useState(false); const [err, setErr] = useState('')
+  useEffect(() => {
+    if (!user) return
+    setApplicant(previous => ({
+      ...previous,
+      full_name: previous.full_name || user.name || user.full_name || '',
+      phone: previous.phone || user.phone || '',
+      district: previous.district || user.district || '',
+    }))
+  }, [user])
+  const updateApplicant = key => event => {
+    setApplicant(previous => ({ ...previous, [key]: event.target.value }))
+    setErr('')
+  }
   if (!v) return <section className="sec"><div className="card"><p className="mut p0">Loading vacancy…</p></div></section>
   const closed = v.status === 'Closed'
 
   // Applicants must be signed in to apply; the form collects what we need.
   const next = () => {
     if (step === 0 && files.length === 0) return setErr('Please upload your CV to continue.')
-    if (step === 1 && phone.trim().length < 6) return setErr('Please enter a phone number we can reach you on.')
+    if (step === 1 && !applicant.full_name.trim()) return setErr('Please enter your full name.')
+    if (step === 1 && applicant.phone.trim().length < 6) return setErr('Please enter a phone number we can reach you on.')
+    if (step === 1 && !applicant.district.trim()) return setErr('Please enter your district.')
+    if (step === 1 && !applicant.employment_status) return setErr('Please select your employment status.')
     setErr(''); setStep(step + 1)
   }
   const submit = () => {
     if (!consent) return setErr('Please agree to your documents being processed before applying.')
     if (!user) { go('/login'); return }
-    apply({ vacancyId: v.id, phone, note, files }).then(() => go('/me')).catch(error => setErr(error.message))
+    apply({ vacancyId: v.id, applicant, files }).then(() => go('/me')).catch(error => setErr(error.message))
   }
   const onFiles = list => {
     setFiles(previous => {
@@ -54,13 +76,25 @@ export function VacancyDetail() {
     <section className="banner" style={{ backgroundImage: `linear-gradient(90deg,rgba(23,48,92,.94),rgba(23,48,92,.5)),url(/images/${v.img}.svg)` }}>
       <Link to="/" className="back">← All vacancies</Link><span className="eyebrow">{v.cat} · {v.type}</span><h1>{v.title}</h1><p>Closes {v.closes}</p></section>
     <div className="sec two"><div className="col" style={{ gap: 22 }}>
-      <div className="card"><h3>About the role</h3><p className="mut" style={{ fontSize: 15 }}>{v.summary} [Full role description from the Director appears here.]</p></div>
+      <div className="card"><h3>About the role</h3><p className="mut" style={{ fontSize: 15, whiteSpace: 'pre-line' }}>{v.description || v.summary}</p></div>
       <div className="card"><h3>What we are looking for</h3><ul className="chk">{v.criteria.map(c => <li key={c[0]}>{c[0]}</li>)}</ul></div></div>
     <aside className="card col apply"><h3>Apply for this role</h3>
       <ol className="stepper">{steps.map((s, i) => <li key={s} className={i === step ? 'on' : i < step ? 'done' : ''}>{i + 1}. {s}</li>)}</ol>
       {closed && <p className="mut p0">This vacancy has closed. You can still sign in to see the vacancies that are open.</p>}
       {!closed && step === 0 && <><Dropzone label="CV (PDF or Word)" hint="Max 5 MB" onFiles={onFiles} /><Dropzone label="Certificates and qualifications" hint="Scans and photos accepted" multiple onFiles={onFiles} /></>}
-      {!closed && step === 1 && <><Field label="Phone number" id="ph" type="tel" value={phone} onChange={e => { setPhone(e.target.value); setErr('') }} /><Field label="Cover note (optional)" id="cn" as="textarea" rows="4" value={note} onChange={e => setNote(e.target.value)} /></>}
+      {!closed && step === 1 && <>
+        <Field label="Full name" id="applicant-name" required value={applicant.full_name} onChange={updateApplicant('full_name')} />
+        <Field label="Email" id="applicant-email" type="email" value={user?.email || ''} disabled />
+        <div className="g2">
+          <Field label="Phone number" id="ph" type="tel" required value={applicant.phone} onChange={updateApplicant('phone')} />
+          <Field label="District" id="applicant-district" required value={applicant.district} onChange={updateApplicant('district')} />
+        </div>
+        <Field label="Employment status" id="employment-status" as="select" required value={applicant.employment_status} onChange={updateApplicant('employment_status')}>
+          <option value="">Select employment status</option>
+          <option value="Employed">Employed</option>
+          <option value="Not employed">Not employed</option>
+        </Field>
+      </>}
       {!closed && step === 2 && <><p className="mut p0">Applying for <b>{v.title}</b>. Software reads your documents to help the Director compare applications. The Director makes the final decision.</p>
         {files.length > 0 && <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>{files.map(file => <Chip key={file.name} k="b">{file.name}</Chip>)}</div>}
         <label className="row" style={{ alignItems: 'flex-start', fontSize: 13.5 }}><input type="checkbox" checked={consent} onChange={e => { setConsent(e.target.checked); setErr('') }} style={{ width: 20, height: 20, accentColor: '#17305C' }} /> I agree to my documents being processed for this recruitment.</label></>}

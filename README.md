@@ -2,11 +2,14 @@
 React.js (Vite) + Python/FastAPI + SQLAlchemy for recruitment vacancies, document screening, Director review, and reporting.
 
 ## Run the UI
+Start the backend in a separate terminal first (see the backend instructions below), then run:
+
 ```
 cd frontend
 npm install
 npm run dev     # http://localhost:5173
 ```
+Keep both the backend on port 8000 and the frontend on port 5173 running while using the app. A Vite `ECONNREFUSED` proxy error means the backend is not reachable on port 8000.
 Pages: public careers site (`/`), vacancy and apply (`/vacancies/<uuid>`), my applications (`/me`), sign in/register, password recovery, and the Director workspace (`/admin`). Sign in using a registered account.
 
 The vacancy IDs are generated UUIDs, so use the links shown by the application rather than assuming a numeric vacancy URL.
@@ -32,10 +35,10 @@ cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Without a `DATABASE_URL` environment variable, the API creates `backend/tingathe.db`, initializes all tables, and seeds local development data. The frontend Vite server proxies `/api` requests to `http://localhost:8000`.
+Without a `DATABASE_URL` environment variable, the API creates `backend/tingathe.db`, initializes all tables, and seeds local development data. The frontend Vite server proxies `/api` requests to `http://127.0.0.1:8000`.
 
 ## Backend (PostgreSQL)
 
@@ -68,7 +71,9 @@ The SQLite development seed only runs for SQLite. Use an explicit deployment or 
 
 ## Screening model configuration
 
-The scoring engine uses the criteria in `tingathe_demo_dataset.xlsx`: academic qualification 25%, teaching subject specialization 25%, teaching experience 20%, teaching methodology and classroom management 15%, professional teaching qualification/training 10%, and additional relevant skills 5%.
+The deterministic, explainable screening model learns subject and skill vocabularies from the synthetic applicant records in `tingathe_demo_dataset.xlsx` and role requirements from `vacancies.csv`. Applicant contact fields are not copied into the trained model. Scoring uses the six fixed criteria in `scoring_criteria.csv` (25%, 25%, 20%, 15%, 10%, 5%); their labels and weights are enforced by the backend and cannot be edited in the vacancy form. The training script rejects changes to the fixed rubric. This dataset has no outcome labels, so it configures a transparent rule-based ranker rather than training a predictive hire/reject classifier.
+
+Vacancy managers can mark fixed criteria as applicable or not applicable per role. The fixed weights are never modified; the score is normalized over only the applicable criteria. Directors can use **Reset & score again** on an application to create a fresh screening run from its saved profile. The admin search covers applicants and vacancies.
 
 Rebuild the configuration with:
 
@@ -77,7 +82,7 @@ cd backend
 .venv\Scripts\python.exe scoring\train_from_workbook.py
 ```
 
-This generates `backend/scoring/trained_model.json`, which is loaded by the backend automatically.
+This reads the workbook and both CSV files and regenerates `backend/scoring/trained_model.json`, which is loaded by the backend automatically. Imported vacancies include their subject, qualification, experience, skills and district. Applicant applications collect the corresponding profile details in addition to the CV.
 
 ## Ideas for later
 SMS or WhatsApp status updates, a real Chichewa translation for the language switch, and a read-only link for the school board to view the shortlist.

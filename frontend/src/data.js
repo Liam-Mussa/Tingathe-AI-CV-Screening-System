@@ -10,6 +10,14 @@ export const applicants = [
  {id:1,name:'Chikondi Banda',score:86,ext:'Complete',decision:'Shortlisted'},{id:2,name:'Tiyamike Phiri',score:79,ext:'Complete',decision:'Under review'},
  {id:3,name:'Mercy Chirwa',score:71,ext:'Review',decision:'Under review'},{id:4,name:'Limbani Mwale',score:58,ext:'Complete',decision:'Undecided'},{id:5,name:'Esther Nkhoma',score:null,ext:'Review',decision:'Manual check'}]
 export const criteria = [['Degree in Mathematics Education',30],['Teaching registration',15],['Classroom experience (3+ years)',25],['Curriculum planning, assessment',20],['ICT in teaching',10]]
+export const FIXED_SCORING_CRITERIA = [
+  ['academic qualification', 25],
+  ['teaching subject specialization', 25],
+  ['teaching experience', 20],
+  ['teaching methodology and classroom management', 15],
+  ['professional teaching qualification/training', 10],
+  ['additional relevant skills', 5],
+]
 // Screening criteria per vacancy, so each vacancy screens against its own requirements.
 export const criteriaByVacancy = {
   1:[['Degree in Mathematics Education',30],['Teaching registration',15],['Classroom experience (3+ years)',25],['Curriculum planning, assessment',20],['ICT in teaching',10]],

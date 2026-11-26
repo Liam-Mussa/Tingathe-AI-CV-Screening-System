@@ -5,7 +5,7 @@ testing we allow a SQLite URL through DATABASE_URL, so the API can be exercised
 without installing a database server. The SQLAlchemy models are identical in
 both cases; only the DSN changes.
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from config import DATABASE_URL
@@ -33,3 +33,13 @@ def init_db() -> None:
     import models  # noqa: PLC0415 - imported here so models registers on Base
 
     Base.metadata.create_all(bind=engine)
+    columns = {
+        column["name"]
+        for column in inspect(engine).get_columns("vacancy_criteria")
+    }
+    if "is_applicable" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "ALTER TABLE vacancy_criteria "
+                "ADD COLUMN is_applicable BOOLEAN NOT NULL DEFAULT TRUE"
+            ))

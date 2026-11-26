@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from scoring.criteria import FIXED_CRITERION_TYPES, FIXED_SCORING_CRITERIA, criterion_key
+
 
 class APIModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
@@ -56,6 +58,7 @@ class CriterionRequest(BaseModel):
     required_value: str | None = Field(default=None, max_length=200)
     weight: float = Field(default=0, ge=0, le=100)
     is_mandatory: bool = False
+    is_applicable: bool = True
 
 
 class CriterionResponse(APIModel):
@@ -65,6 +68,7 @@ class CriterionResponse(APIModel):
     required_value: str | None = None
     weight: float
     is_mandatory: bool = False
+    is_applicable: bool = True
 
 
 class VacancyRequest(BaseModel):
@@ -77,6 +81,39 @@ class VacancyRequest(BaseModel):
     status: Literal["draft", "open", "closed", "archived"] = "draft"
     closing_date: date | None = None
     criteria: list[CriterionRequest] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def scoring_criteria_are_fixed(self):
+        if not self.criteria:
+            return self
+        expected = {
+            criterion_key(label): weight
+            for label, weight in FIXED_SCORING_CRITERIA
+        }
+        expected_types = {
+            criterion_key(label): criterion_type
+            for label, criterion_type in FIXED_CRITERION_TYPES.items()
+        }
+        supplied = {}
+        for criterion in self.criteria:
+            key = criterion_key(criterion.label)
+            if key in supplied or key not in expected:
+                raise ValueError("Screening criteria are fixed and cannot be changed")
+            if abs(criterion.weight - expected[key]) > 0.001:
+                raise ValueError("Screening criteria weights are fixed and cannot be changed")
+            if (
+                criterion.criterion_type != expected_types[key]
+                or criterion.is_mandatory
+            ):
+                raise ValueError("Screening criterion behavior is fixed and cannot be changed")
+            supplied[key] = criterion.weight
+        if set(supplied) != set(expected):
+            raise ValueError("All six fixed screening criteria are required")
+        if self.status == "open" and not any(
+            criterion.is_applicable for criterion in self.criteria
+        ):
+            raise ValueError("An open vacancy needs at least one applicable criterion")
+        return self
 
 
 class VacancyResponse(APIModel):
@@ -110,6 +147,7 @@ class CriterionScoreResponse(APIModel):
     matched: bool
     score: float
     weight: float
+    is_applicable: bool = True
     explanation: str
     evidence: str | None = None
 
@@ -122,7 +160,9 @@ class ApplicationResponse(APIModel):
     legacy_vacancy_id: int | None = None
     applicant_id: str
     name: str
+    email: str | None = None
     phone: str | None = None
+    district: str | None = None
     note: str | None = None
     cover_note: str | None = None
     files: list[str] = Field(default_factory=list)

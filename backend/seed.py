@@ -1,10 +1,15 @@
 """Idempotent development data for a first local API run."""
+import csv
 from datetime import date
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from models import Category, User, Vacancy, VacancyCriterion
 from security import hash_password
+from scoring.criteria import FIXED_SCORING_CRITERIA
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 SEED_VACANCIES = [
     {
@@ -149,4 +154,87 @@ def seed_development_data(db: Session) -> None:
             for criterion_type, label, required, weight, mandatory in item["criteria"]
         ])
 
+    _seed_dataset_vacancies(db, director)
     db.commit()
+
+
+def _seed_dataset_vacancies(db: Session, director: User) -> None:
+    """Create the supplied CSV vacancies with the immutable scoring rubric."""
+    vacancies_path = PROJECT_ROOT / "vacancies.csv"
+    with vacancies_path.open(newline="", encoding="utf-8-sig") as file:
+        rows = list(csv.DictReader(file))
+    required_columns = {
+        "job_title", "subjects", "minimum_qualification",
+        "minimum_experience_years", "required_skills", "location",
+    }
+    if not rows or not required_columns.issubset(rows[0]):
+        raise ValueError(f"{vacancies_path.name} is missing required vacancy columns")
+
+    existing_titles = {title for (title,) in db.query(Vacancy.title).all()}
+    category = db.query(Category).filter(Category.name == "Teaching").one_or_none()
+    if category is None:
+        category = Category(name="Teaching")
+        db.add(category)
+        db.flush()
+
+    for row in rows:
+        title = row["job_title"].strip()
+        if not title or title in existing_titles:
+            continue
+        subject = row["subjects"].strip()
+        location = row["location"].strip()
+        minimum_qualification = row["minimum_qualification"].strip()
+        minimum_experience = float(row["minimum_experience_years"])
+        required_skills = row["required_skills"].strip()
+        summary = f"Teach {subject} at secondary-school level in {location}."
+        experience_text = (
+            f"{minimum_experience:g} "
+            f"{'year' if minimum_experience == 1 else 'years'}"
+        )
+        description = (
+            f"Subject: {subject}\nLocation: {location}\n"
+            f"Minimum qualification: {minimum_qualification}\n"
+            f"Minimum secondary-school teaching experience: {experience_text}\n"
+            f"Required skills: {required_skills}"
+        )
+        image_key = {
+            "mathematics": "maths",
+            "biology": "science",
+            "english": "english",
+            "computer studies": "science",
+        }.get(subject.lower(), "maths")
+        vacancy = Vacancy(
+            category_id=category.id,
+            title=title,
+            summary=summary,
+            description=description,
+            employment_type="Full time",
+            image_key=image_key,
+            status="open",
+            closing_date=None,
+            created_by=director.id,
+        )
+        db.add(vacancy)
+        db.flush()
+        requirements = {
+            "academic qualification": ("qualification", minimum_qualification),
+            "teaching subject specialization": ("skill", subject),
+            "teaching experience": ("experience", f"{minimum_experience:g} years"),
+            "teaching methodology and classroom management": ("keyword", required_skills),
+            "professional teaching qualification/training": (
+                "keyword", "Teacher education or professional teaching training"
+            ),
+            "additional relevant skills": ("skill", required_skills),
+        }
+        db.add_all([
+            VacancyCriterion(
+                vacancy_id=vacancy.id,
+                criterion_type=requirements[label][0],
+                label=label,
+                required_value=requirements[label][1],
+                weight=weight,
+                is_mandatory=False,
+            )
+            for label, weight in FIXED_SCORING_CRITERIA
+        ])
+        existing_titles.add(title)
